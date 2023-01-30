@@ -1,4 +1,5 @@
 ﻿#include "Toolkit/AssetTypeGenerator/TextureCubeGenerator.h"
+#include "Engine/Texture.h"
 #include "Engine/TextureCube.h"
 
 TSubclassOf<UTexture> UTextureCubeGenerator::GetTextureClass() {

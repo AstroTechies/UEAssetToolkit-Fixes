@@ -6,23 +6,24 @@
 #include "Toolkit/AssetDumping/SerializationContext.h"
 #include "AssetDumperModule.h"
 
+/*
 void UMaterialAssetSerializer::SerializeAsset(TSharedRef<FSerializationContext> Context) const {
-    BEGIN_ASSET_SERIALIZATION(UMaterial)
-	
-    //TODO we do not serialize shaders yet, but information exposed by normal object serialization should be enough for reasonable stubs
-    //obviously they will be unable to show material in editor, but they can be used to reference it and even create new instances on top of it
+	BEGIN_ASSET_SERIALIZATION(UMaterial)
+
+	//TODO we do not serialize shaders yet, but information exposed by normal object serialization should be enough for reasonable stubs
+	//obviously they will be unable to show material in editor, but they can be used to reference it and even create new instances on top of it
 
 	DisableMaterialExpressionProperties(Serializer);
 	DisableMaterialFunctionSerialization(Serializer);
 	SerializeReferencedFunctions(Asset->GetCachedExpressionData(), Data);
-	
+
 	SERIALIZE_ASSET_OBJECT
-	
-    END_ASSET_SERIALIZATION
+
+	END_ASSET_SERIALIZATION
 }
 
 void UMaterialAssetSerializer::SerializeReferencedFunctions(const FMaterialCachedExpressionData& ExpressionData, const TSharedPtr<FJsonObject> Data) {
-	
+
 	TArray<TSharedPtr<FJsonValue>> ReferencedFunctions;
 	for (const FMaterialFunctionInfo& FunctionInfo : ExpressionData.FunctionInfos) {
 		ReferencedFunctions.Add(MakeShareable(new FJsonValueString(FunctionInfo.Function->GetPathName())));
@@ -64,5 +65,6 @@ void UMaterialAssetSerializer::DisableMaterialExpressionProperties(UPropertySeri
 }
 
 FName UMaterialAssetSerializer::GetAssetClass() const {
-    return UMaterial::StaticClass()->GetFName();
+	return UMaterial::StaticClass()->GetFName();
 }
+*/

@@ -45,12 +45,13 @@ void FSelectedAssetsStruct::AddExcludedPackagePath(const FString& PackagePath) {
 
 	//We need to append PackagePath, but also expand it's sub-paths
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
-	IAssetRegistry& AssetRegistry = AssetRegistryModule.GetRegistry();
-	
-	AssetRegistry.EnumerateSubPaths(PackagePath, [this](const FString& PackageSubPath) {
-		this->ExcludedPackagePaths.Add(*PackageSubPath);
-		return true;
-	}, true);	
+	IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+
+	FJsonSerializableArray array;
+	AssetRegistry.GetSubPaths(PackagePath, array, true);
+	for (auto element : array) {
+		this->ExcludedPackagePaths.Add(*element);
+	}
 }
 
 void FSelectedAssetsStruct::AddExcludedPackageName(const FString& PackageName) {
@@ -63,27 +64,40 @@ void FSelectedAssetsStruct::AddAssetClassWhitelist(FName AssetClass) {
 
 void FSelectedAssetsStruct::GatherAssetsData() {
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
-	IAssetRegistry& AssetRegistry = AssetRegistryModule.GetRegistry();
+	IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
 
 	//First retrieve assets by included paths, matching them recursively and applying excludes
 	if (IncludedPackagePaths.Num()) {
 		FARFilter PackagePathsFilter{};
 		PackagePathsFilter.bRecursivePaths = true;
-		PackagePathsFilter.PackagePaths.Append(IncludedPackagePaths);
+
+		for (auto a : IncludedPackagePaths) {
+			PackagePathsFilter.PackagePaths.Add(FName(*a));
+		}
+
 		PackagePathsFilter.ClassNames.Append(AssetClassesWhitelist);
-		AssetRegistry.EnumerateAssets(PackagePathsFilter, [this](const FAssetData& AssetData) {
-			return ProcessIncludedPathAsset(AssetData);
-		});
+
+		TArray<FAssetData> assets;
+		AssetRegistry.GetAssets(PackagePathsFilter, assets);
+		for (auto asset : assets) {
+			if (!ProcessIncludedPathAsset(asset)) break;
+		}
 	}
 
 	//Then retrieve assets matched by individual package names, these assets take priority over excludes and don't need them
 	if (IncludedPackageNames.Num()) {
 		FARFilter PackageNamesFilter{};
-		PackageNamesFilter.PackageNames.Append(IncludedPackageNames);
+
+		for (auto a : IncludedPackageNames) {
+			PackageNamesFilter.PackageNames.Add(FName(*a));
+		}
 		PackageNamesFilter.ClassNames.Append(AssetClassesWhitelist);
-		AssetRegistry.EnumerateAssets(PackageNamesFilter, [this](const FAssetData& AssetData) {
-            return ProcessForciblyIncludedAsset(AssetData);
-        });
+
+		TArray<FAssetData> assets;
+		AssetRegistry.GetAssets(PackageNamesFilter, assets);
+		for (auto asset : assets) {
+			if (!ProcessForciblyIncludedAsset(asset)) break;
+		}
 	}
 }
 
@@ -100,7 +114,7 @@ void FAssetTreeNode::RegenerateChildren() {
 		return;
 	}
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
-	IAssetRegistry& AssetRegistry = AssetRegistryModule.GetRegistry();
+	IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
 
 	//Retrieve sub paths without recursing into them, we want to populate them lazily
 	TArray<FString> OutSubPaths;
@@ -136,23 +150,25 @@ TSharedPtr<FAssetTreeNode> FAssetTreeNode::MakeChildNode() {
 
 void FAssetTreeNode::UpdateSelectedState(bool bIsCheckedNew, bool bIsSetByParent) {
 	this->bIsChecked = bIsCheckedNew;
-	
+
 	//We reset override state when selected state is updated by parent
 	if (bIsSetByParent) {
 		this->bIsOverridingParentState = false;
-	} else {
+	}
+	else {
 		//Otherwise we reset it if it matches parent state or set it to true otherwise
 		const TSharedPtr<FAssetTreeNode> ParentNodePinned = ParentNode.Pin();
 		const bool bIsParentChecked = ParentNodePinned.IsValid() ? ParentNodePinned->IsChecked() : false;
 		//If updated state matches parent state, we should remove override
 		if (bIsParentChecked == bIsCheckedNew) {
 			this->bIsOverridingParentState = false;
-		} else {
+		}
+		else {
 			//Otherwise our state differs from the parents one, so we are overriding it
 			this->bIsOverridingParentState = true;
 		}
 	}
-	
+
 	//Propagate state update to children widgets
 	for (const TSharedPtr<FAssetTreeNode>& ChildNode : Children) {
 		ChildNode->UpdateSelectedState(bIsCheckedNew, true);
@@ -175,16 +191,19 @@ void FAssetTreeNode::PopulateSelectedAssets(const TSharedPtr<FSelectedAssetsStru
 			if (bIsLeafNode) {
 				//We are a leaf node, so we represent an included package name
 				SelectedAssets->AddIncludedPackageName(Path);
-			} else {
+			}
+			else {
 				//We are not a leaf node, we represent a package path to be included
 				SelectedAssets->AddIncludedPackagePath(Path);
 			}
-		} else {
+		}
+		else {
 			//We are unchecked, so we represent excluded package name or path
 			if (bIsLeafNode) {
 				//Leaf node, excluded package nae
 				SelectedAssets->AddExcludedPackageName(Path);
-			} else {
+			}
+			else {
 				//Non-leaf node, excluded sub-path inside of the included path
 				SelectedAssets->AddExcludedPackagePath(Path);
 			}
@@ -208,24 +227,24 @@ SAssetRegistryViewWidget::SAssetRegistryViewWidget() {
 void SAssetRegistryViewWidget::Construct(const FArguments& InArgs) {
 	ChildSlot[
 		SNew(STreeView<TSharedPtr<FAssetTreeNode>>)
-		.HeaderRow(SNew(SHeaderRow)
-					+SHeaderRow::Column(TEXT("ShouldDump"))
-						.DefaultLabel(LOCTEXT("AssetDumper_ColumnShouldDump", "Dump"))
-						.FixedWidth(50)
-						.HAlignCell(HAlign_Center)
-						.HAlignHeader(HAlign_Center)
-					+SHeaderRow::Column(TEXT("Path"))
-						.DefaultLabel(LOCTEXT("AssetDumper_ColumnPath", "Asset Path"))
-					+SHeaderRow::Column(TEXT("AssetClass"))
-						.DefaultLabel(LOCTEXT("AssetDumper_ColumnAssetClass", "Asset Class"))
-						.FixedWidth(100)
-						.HAlignCell(HAlign_Left)
-						.HAlignHeader(HAlign_Center)
-		)
-		.SelectionMode(ESelectionMode::None)
-        .OnGenerateRow_Raw(this, &SAssetRegistryViewWidget::OnCreateRow)
-        .OnGetChildren_Raw(this, &SAssetRegistryViewWidget::GetNodeChildren)
-        .TreeItemsSource(&this->RootAssetPaths)
+			.HeaderRow(SNew(SHeaderRow)
+				+ SHeaderRow::Column(TEXT("ShouldDump"))
+				.DefaultLabel(LOCTEXT("AssetDumper_ColumnShouldDump", "Dump"))
+				.FixedWidth(50)
+				.HAlignCell(HAlign_Center)
+				.HAlignHeader(HAlign_Center)
+				+ SHeaderRow::Column(TEXT("Path"))
+				.DefaultLabel(LOCTEXT("AssetDumper_ColumnPath", "Asset Path"))
+				+ SHeaderRow::Column(TEXT("AssetClass"))
+				.DefaultLabel(LOCTEXT("AssetDumper_ColumnAssetClass", "Asset Class"))
+				.FixedWidth(100)
+				.HAlignCell(HAlign_Left)
+				.HAlignHeader(HAlign_Center)
+			)
+			.SelectionMode(ESelectionMode::None)
+			.OnGenerateRow_Raw(this, &SAssetRegistryViewWidget::OnCreateRow)
+			.OnGetChildren_Raw(this, &SAssetRegistryViewWidget::GetNodeChildren)
+			.TreeItemsSource(&this->RootAssetPaths)
 	];
 }
 
@@ -245,13 +264,13 @@ void SAssetTreeNodeRow::Construct(const FArguments& InArgs, const TSharedRef<STa
 TSharedRef<SWidget> SAssetTreeNodeRow::GenerateWidgetForColumn(const FName& InColumnName) {
 	if (InColumnName == TEXT("Path")) {
 		return SNew(SHorizontalBox)
-		+SHorizontalBox::Slot().AutoWidth()[
-			SNew(SExpanderArrow, SharedThis(this))
-        ]
-        +SHorizontalBox::Slot().FillWidth(1.0f)[
-			SNew(STextBlock)
-			.Text(FText::FromString(TreeNode->NodeName))
-        ];
+			+ SHorizontalBox::Slot().AutoWidth()[
+				SNew(SExpanderArrow, SharedThis(this))
+			]
+			+ SHorizontalBox::Slot().FillWidth(1.0f)[
+				SNew(STextBlock)
+					.Text(FText::FromString(TreeNode->NodeName))
+			];
 	}
 	if (InColumnName == TEXT("AssetClass")) {
 		if (TreeNode->bIsLeafNode) {
@@ -262,12 +281,12 @@ TSharedRef<SWidget> SAssetTreeNodeRow::GenerateWidgetForColumn(const FName& InCo
 	}
 	return SNew(SCheckBox)
 		.IsChecked_Lambda([this]() {
-			return TreeNode->IsChecked() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-		})
+		return TreeNode->IsChecked() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+			})
 		.OnCheckStateChanged_Lambda([this](ECheckBoxState NewState) {
-			const bool bIsChecked = NewState == ECheckBoxState::Checked;
+				const bool bIsChecked = NewState == ECheckBoxState::Checked;
 			TreeNode->UpdateSelectedState(bIsChecked, false);
-		});
+			});
 }
 
 TSharedRef<ITableRow> SAssetRegistryViewWidget::OnCreateRow(const TSharedPtr<FAssetTreeNode> TreeNode, const TSharedRef<STableViewBase>& Owner) const {
@@ -284,13 +303,13 @@ TSharedRef<ITableRow> SAssetRegistryViewWidget::OnCreateRow(const TSharedPtr<FAs
 
 void FSelectedAssetsStruct::LogSettings() {
 	UE_LOG(LogAssetDumper, Display, TEXT("================= BEGIN SETTINGS FOR ASSET GATHERER ================"));
-	
+
 	CHECK_AND_LOG_PARAM(AssetClassesWhitelist, TEXT("Whitelisted Asset Classes: "));
 	CHECK_AND_LOG_PARAM(IncludedPackagePaths, TEXT("Included Package Paths: "));
 	CHECK_AND_LOG_PARAM(IncludedPackageNames, TEXT("Force Included Packages: "));
 	CHECK_AND_LOG_PARAM(ExcludedPackagePaths, TEXT("Excluded Package Paths: "));
 	CHECK_AND_LOG_PARAM(ExcludedPackageNames, TEXT("Excluded Packages: "));
-	
+
 	UE_LOG(LogAssetDumper, Display, TEXT("================== END SETTINGS FOR ASSET GATHERER ================="));
 }
 
@@ -300,18 +319,20 @@ void FSelectedAssetsStruct::FindUnknownAssetClasses(const FString& PackagePathFi
 	TMap<FName, FUnknownAssetClass> UnknownAssetClasses;
 
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
-	const IAssetRegistry& AssetRegistry = AssetRegistryModule.GetRegistry();
-	
-	AssetRegistry.EnumerateAllAssets([&](const FAssetData& AssetData) {
-        if (!KnownAssetClassesSet.Contains(AssetData.AssetClass)) {
-			if (AssetData.PackageName.ToString().StartsWith(PackagePathFilter)) {
-				FUnknownAssetClass& UnknownAssetClass = UnknownAssetClasses.FindOrAdd(AssetData.AssetClass);
-				UnknownAssetClass.AssetClass = AssetData.AssetClass;
-				UnknownAssetClass.FoundAssets.Add(AssetData.PackageName);
+	const IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+
+	TArray<FAssetData> assets;
+	AssetRegistry.GetAllAssets(assets, false);
+	for (auto asset : assets) {
+		if (!KnownAssetClassesSet.Contains(asset.AssetClass)) {
+			if (asset.PackageName.ToString().StartsWith(PackagePathFilter)) {
+				FUnknownAssetClass& UnknownAssetClass = UnknownAssetClasses.FindOrAdd(asset.AssetClass);
+				UnknownAssetClass.AssetClass = asset.AssetClass;
+				UnknownAssetClass.FoundAssets.Add(asset.PackageName);
 			}
-        }
-        return true;
-    });
+		}
+	}
+
 	UnknownAssetClasses.GenerateValueArray(OutUnknownClasses);
 }
 

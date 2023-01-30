@@ -8,7 +8,7 @@ DEFINE_LOG_CATEGORY(LogAssetGenerator)
 
 FString UAssetTypeGenerator::GetAdditionalDumpFilePath(const FString& Postfix, const FString& Extension) const {
 	FString Filename = FPackageName::GetShortName(GetPackageName());
-		
+
 	if (Postfix.Len() > 0) {
 		Filename.AppendChar('-').Append(Postfix);
 	}
@@ -24,12 +24,12 @@ void UAssetTypeGenerator::PopulateReferencedObjectsDependencies(TArray<FPackageD
 	const TSharedPtr<FJsonObject> AssetData = GetAssetData();
 	const TSharedPtr<FJsonObject> AssetObjectProperties = AssetData->GetObjectField(TEXT("AssetObjectData"));
 	const TArray<TSharedPtr<FJsonValue>> ReferencedObjects = AssetObjectProperties->GetArrayField(TEXT("$ReferencedObjects"));
-		
+
 	TArray<FString> OutReferencedPackages;
 	GetObjectSerializer()->CollectReferencedPackages(ReferencedObjects, OutReferencedPackages);
 
 	for (const FString& DependencyPackageName : OutReferencedPackages) {
-		OutDependencies.Add(FPackageDependency{*DependencyPackageName, EAssetGenerationStage::CDO_FINALIZATION});
+		OutDependencies.Add(FPackageDependency{ *DependencyPackageName, EAssetGenerationStage::CDO_FINALIZATION });
 	}
 }
 
@@ -62,6 +62,7 @@ void UAssetTypeGenerator::InitializeInternal(const FString& DumpRootDirectory, c
 		*InPackageName.ToString(), *this->PackageName.ToString());
 
 	const TArray<TSharedPtr<FJsonValue>> ObjectHierarchy = RootFileObject->GetArrayField(TEXT("ObjectHierarchy"));
+	this->ObjectSerializer->PackageName = *RootFileObject->GetStringField("AssetPackage");
 	this->ObjectSerializer->InitializeForDeserialization(ObjectHierarchy);
 	this->AssetData = RootFileObject->GetObjectField(TEXT("AssetSerializedData"));
 	this->bIsGeneratingPublicProject = bGeneratePublicProject;
@@ -72,8 +73,8 @@ bool UAssetTypeGenerator::IsDumbAsset()
 {
 	if (GetClass()->GetName() == "AnimBlueprintGenerator"
 		|| GetClass()->GetName() == "BlendSpaceGenerator"
-			/*|| GetAssetName().ToString().Contains("AIC_")*/ /*|| GetPackageBaseDirectory() == L"F:/DRG Modding/DRGPacker/JSON/Assets/Game/Critters/Prospector"*/
-			&& bSkipAnim)
+		/*|| GetAssetName().ToString().Contains("AIC_")*/ /*|| GetPackageBaseDirectory() == L"F:/DRG Modding/DRGPacker/JSON/Assets/Game/Critters/Prospector"*/
+		&& bSkipAnim)
 	{
 		UE_LOG(LogAssetGenerator, Warning, TEXT("Skipping asset %s"), *GetAssetName().ToString());
 		return true;
@@ -85,15 +86,16 @@ void UAssetTypeGenerator::ConstructAssetAndPackage() {
 	UPackage* ExistingPackage = FindPackage(NULL, *PackageName.ToString());
 	if (!ExistingPackage) {
 		if (!IsDumbAsset()) {
-			ExistingPackage = LoadPackage(NULL, *PackageName.ToString(), LOAD_Quiet);	
-		} else
+			ExistingPackage = LoadPackage(NULL, *PackageName.ToString(), LOAD_Quiet);
+		}
+		else
 		{
 			// We don't want to continue the rest of this function where it thinks the package already exists because
 			// it may not, and we want to make sure that the rest of the package is created.
 			return;
 		}
 	}
-		
+
 	if (ExistingPackage == NULL) {
 		//Make new package if we don't have existing one, make sure asset object is also allocated
 		CreateAssetPackage();
@@ -101,15 +103,16 @@ void UAssetTypeGenerator::ConstructAssetAndPackage() {
 
 		//Make sure to mark package as changed because it has never been saved to disk before
 		MarkAssetChanged();
-	} else {
+	}
+	else {
 		//Package already exist, reuse it while making sure out asset is contained within
 		UObject* AssetObject = FindObject<UObject>(ExistingPackage, *AssetName.ToString());
 		if (AssetObject == NULL) return; // TODO: Yes, I know this is a horrible hackfix, but it seems to mostly work. Needs a proper fix though.
-		
+
 		//We need to verify package exists and provide meaningful error message, so user knows what is wrong
 		checkf(AssetObject, TEXT("Existing package %s does not contain an asset named %s, requested by asset dump"), *PackageName.ToString(), *AssetName.ToString());
 		SetPackageAndAsset(ExistingPackage, AssetObject);
-			
+
 		//Notify generator we are reusing existing package, so it can do additional cleanup and settings
 		this->bUsingExistingPackage = true;
 		OnExistingPackageLoaded();
@@ -126,11 +129,11 @@ void UAssetTypeGenerator::MarkAssetChanged() {
 void UAssetTypeGenerator::SetPackageAndAsset(UPackage* NewPackage, UObject* NewAsset, bool bSetObjectMark) {
 	checkf(CurrentStage == EAssetGenerationStage::CONSTRUCTION, TEXT("SetPackageAndAsset can only be called during CONSTRUCTION"));
 	checkf(AssetPackage == NULL, TEXT("SetPackageAndAsset can only be called once during CreateAssetPackage"));
-	
+
 	check(NewPackage->GetFName() == GetPackageName());
 	check(NewAsset->GetFName() == GetAssetName());
 	check(NewAsset->GetOuter() == NewPackage);
-	
+
 	this->AssetPackage = NewPackage;
 	this->AssetObject = NewAsset;
 
@@ -153,14 +156,17 @@ void UAssetTypeGenerator::PreFinishAssetGeneration() {
 }
 
 FGeneratorStateAdvanceResult UAssetTypeGenerator::AdvanceGenerationState() {
+	if (this->PackageName == "/Game/PostProcess/MaxComponent") {
+		UE_LOG(LogTemp, Warning, TEXT("Amogus!"));
+	}
 	this->bIsStageNotOverriden = false;
 	this->bAssetChanged = false;
 
 	//Return early if we have already finished asset generation
 	if (CurrentStage == EAssetGenerationStage::FINISHED) {
-		return FGeneratorStateAdvanceResult{CurrentStage, false};
+		return FGeneratorStateAdvanceResult{ CurrentStage, false };
 	}
-	
+
 	//Dispatch current stage call to the appropriate method
 	if (CurrentStage == EAssetGenerationStage::CONSTRUCTION) {
 		this->ConstructAssetAndPackage();
@@ -174,10 +180,10 @@ FGeneratorStateAdvanceResult UAssetTypeGenerator::AdvanceGenerationState() {
 	if (CurrentStage == EAssetGenerationStage::PRE_FINSHED) {
 		if (AssetObject != NULL) this->PreFinishAssetGeneration();
 	}
-		
+
 	//Increment current generation stage
-	this->CurrentStage = (EAssetGenerationStage) ((int32) CurrentStage + 1);
-	
+	this->CurrentStage = (EAssetGenerationStage)((int32)CurrentStage + 1);
+
 	//Force package to be saved to disk if it has been marked as changed, which should have also marked it as dirty
 	if (bAssetChanged) {
 		TArray<UPackage*> PackagesToSave;
@@ -186,11 +192,11 @@ FGeneratorStateAdvanceResult UAssetTypeGenerator::AdvanceGenerationState() {
 		if (!IsDumbAsset()) {
 			UEditorLoadingAndSavingUtils::SavePackages(PackagesToSave, false);
 		}
-		
+
 		this->bAssetChanged = false;
 		this->bHasAssetEverBeenChanged = true;
 	}
-	return FGeneratorStateAdvanceResult{CurrentStage, bIsStageNotOverriden};
+	return FGeneratorStateAdvanceResult{ CurrentStage, bIsStageNotOverriden };
 }
 
 FString UAssetTypeGenerator::GetAssetFilePath(const FString& RootDirectory, FName PackageName) {
@@ -199,7 +205,7 @@ FString UAssetTypeGenerator::GetAssetFilePath(const FString& RootDirectory, FNam
 	PackagePath.RemoveAt(0);
 
 	const FString PackageBaseDirectory = FPaths::Combine(RootDirectory, PackagePath);
-	
+
 	const FString AssetDumpFilename = FPaths::SetExtension(ShortPackageName, TEXT("json"));
 	return FPaths::Combine(PackageBaseDirectory, AssetDumpFilename);
 }
@@ -268,7 +274,7 @@ FAssetTypeGeneratorRegistry::FAssetTypeGeneratorRegistry() {
 		if (!Class->HasAnyClassFlags(CLASS_Native)) {
 			continue;
 		}
-            
+
 		//Check asset type in class default object
 		UAssetTypeGenerator* ClassDefaultObject = CastChecked<UAssetTypeGenerator>(Class->GetDefaultObject());
 		if (ClassDefaultObject->GetAssetClass() != NAME_None) {

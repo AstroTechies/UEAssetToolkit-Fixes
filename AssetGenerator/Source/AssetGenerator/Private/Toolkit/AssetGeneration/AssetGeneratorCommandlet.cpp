@@ -24,7 +24,7 @@ public:
 		this->MaxSecondsBetweenGC = MaxSecondsBetweenGC;
 		this->MaxPackagesBetweenGC = MaxPackagesBetweenGC;
 	}
-		
+
 	void Update(int32 PackagesGeneratedThisTick) {
 		this->PackagesCookedSinceLastGC += PackagesGeneratedThisTick;
 	}
@@ -64,12 +64,12 @@ UAssetRegistryImpl& UAssetGeneratorCommandlet::Get()
 int32 UAssetGeneratorCommandlet::Main(const FString& Params) {
 	TArray<FString> Tokens, Switches;
 	ParseCommandLine(*Params, Tokens, Switches);
-		
+
 	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
 
 	const bool bRefreshExistingAssets = !Switches.Contains(TEXT("NoRefresh"));
 	const bool bGeneratePublicProject = Switches.Contains(TEXT("PublicProject"));
-	
+
 	FString DumpDirectory;
 	{
 		if (!FParse::Value(*Params, TEXT("DumpDirectory="), DumpDirectory)) {
@@ -82,7 +82,7 @@ int32 UAssetGeneratorCommandlet::Main(const FString& Params) {
 			UE_LOG(LogAssetGeneratorCommandlet, Error, TEXT("Asset dump root directory %s does not exist"), *DumpDirectory);
 		}
 	}
-	
+
 	TSharedPtr<TSet<FName>> WhitelstedAssetClasses;
 	{
 		FString AssetClassWhitelistString;
@@ -150,12 +150,13 @@ int32 UAssetGeneratorCommandlet::Main(const FString& Params) {
 
 			TSet<FString> BlacklistPackageNames;
 			TArray<FString> WildcardBlacklistedPaths;
-			
+
 			for (const FString& PackageNameOrPath : PackageNamesLines) {
 				if (PackageNameOrPath.EndsWith(TEXT("/"))) {
 					//Wildcard path - add to array for fast iteration
 					WildcardBlacklistedPaths.Add(PackageNameOrPath);
-				} else {
+				}
+				else {
 					//Exact package name - add to set for instant lookup
 					BlacklistPackageNames.Add(PackageNameOrPath);
 				}
@@ -232,8 +233,8 @@ int32 UAssetGeneratorCommandlet::Main(const FString& Params) {
 	//We always want to tick the generator manually, even though without engine ticking game objects will not be processed anyway
 	Configuration.bTickOnTheSide = true;
 	TSharedPtr<FAssetGenerationProcessor> GenerationProcessor = FAssetGenerationProcessor::CreateAssetGenerator(Configuration, ResultPackagesToGenerate);
-	
-	while (!GenerationProcessor->HasFinishedAssetGeneration() && !IsEngineExitRequested()) {
+
+	while (!GenerationProcessor->HasFinishedAssetGeneration()) {
 		int32 GeneratedPkgCount = 0;
 		GenerationProcessor->TickOnTheSide(GeneratedPkgCount);
 
@@ -247,11 +248,11 @@ int32 UAssetGeneratorCommandlet::Main(const FString& Params) {
 		ProcessDeferredCommands();
 
 		//Tick shader compilation if we have any pending async shader jobs
-		while (GShaderCompilingManager->HasShaderJobs() && !IsEngineExitRequested()) {
-			
+		while (GShaderCompilingManager->HasShaderJobs()) {
+
 			// force at least a tick shader compilation even if we are requesting stuff
 			GShaderCompilingManager->ProcessAsyncResults(true, false);
-			
+
 			ProcessDeferredCommands();
 			AssetGeneratorGCController.ConditionallyCollectGarbage();
 		}
@@ -273,11 +274,11 @@ int32 UAssetGeneratorCommandlet::Main(const FString& Params) {
 
 		for (UPackage* Package : InMemoryDirtyPackages) {
 			UE_LOG(LogAssetGeneratorCommandlet, Display, TEXT("Saving dirty package %s"), *Package->GetName());
-			UEditorLoadingAndSavingUtils::SavePackages({Package}, true);
+			UEditorLoadingAndSavingUtils::SavePackages({ Package }, true);
 		}
 		AssetGeneratorGCController.ConditionallyCollectGarbage();
 	}
-	
+
 	//Synchronize asset registry state with all of the new packages we created
 #if ENGINE_MINOR_VERSION >= 26
 	IAssetRegistry::GetChecked().SearchAllAssets(true);
@@ -293,7 +294,7 @@ void UAssetGeneratorCommandlet::ProcessDeferredCommands() {
 	FTaskGraphInterface::Get().ProcessThreadUntilIdle(ENamedThreads::GameThread);
 
 	// execute deferred commands
-	for (int32 DeferredCommandsIndex = 0; DeferredCommandsIndex< GEngine->DeferredCommands.Num(); DeferredCommandsIndex++) {
+	for (int32 DeferredCommandsIndex = 0; DeferredCommandsIndex < GEngine->DeferredCommands.Num(); DeferredCommandsIndex++) {
 		GEngine->Exec(GWorld, *GEngine->DeferredCommands[DeferredCommandsIndex], *GLog);
 	}
 	GEngine->DeferredCommands.Empty();
@@ -306,21 +307,21 @@ void UAssetGeneratorCommandlet::ClearEmptyGamePackagesLoadedDuringDisregardGC() 
 	//marks them as GC disregarded, so they end up being loaded as empty rooted packages when actual referenced
 	//packages on disk do not exist. Here we track down these packages and delete them, because they
 	//interfere with the asset generator by the commandlet
-	for(TObjectIterator<UPackage> It; It; ++It) {
+	for (TObjectIterator<UPackage> It; It; ++It) {
 		UPackage* Package = *It;
 		if (!Package->GetName().StartsWith(TEXT("/Game/"))) {
 			continue;
 		}
-		
+
 		int32 ExistingObjectsNum = 0;
 #if ENGINE_MINOR_VERSION >= 26
-		ForEachObjectWithPackage(Package, [&](UObject* Object){
+		ForEachObjectWithPackage(Package, [&](UObject* Object) {
 #else
-			ForEachObjectWithOuter(Package, [&](UObject* Object){
+		ForEachObjectWithOuter(Package, [&](UObject* Object) {
 #endif				
 			ExistingObjectsNum++;
-			return false;
-		});
+		return false;
+			});
 		if (ExistingObjectsNum != 0) {
 			continue;
 		}

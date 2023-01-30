@@ -87,12 +87,12 @@ struct FMaterialLayoutChangeInfo {
 	void PrintChangeReport(TArray<FString>& OutReport) const;
 	bool IsParameterNodeRemoved(const FName& ParameterName);
 
-	FORCEINLINE FMaterialLayoutChangeInfo(): bAddedQualityLevelNode(false),
-											 bRemovedQualityLevelNode(false),
-	                                         bAddedSceneColorExpression(false),
-	                                         bRemovedSceneColorExpression(false),
-	                                         bAddedVirtualTextureOutput(false),
-	                                         bRemovedVirtualTextureOutput(false) {}
+	FORCEINLINE FMaterialLayoutChangeInfo() : bAddedQualityLevelNode(false),
+		bRemovedQualityLevelNode(false),
+		bAddedSceneColorExpression(false),
+		bRemovedSceneColorExpression(false),
+		bAddedVirtualTextureOutput(false),
+		bRemovedVirtualTextureOutput(false) {}
 };
 
 struct FIndexedParameterInfo {
@@ -105,22 +105,19 @@ UCLASS(MinimalAPI)
 class UMaterialGenerator : public UAssetTypeGenerator {
 	GENERATED_BODY()
 public:
-	static const int32 NumMaterialRuntimeParameterTypes = (int32)EMaterialParameterType::Count;
-	
-	UPROPERTY()
-	FMaterialCachedParameterEntry RuntimeEntries[NumMaterialRuntimeParameterTypes];
-	
+	static const int32 NumMaterialRuntimeParameterTypes = (int32)6;
+
+
 protected:
-	
-	const FMaterialCachedParameterEntry& GetParameterTypeEntry(EMaterialParameterType Type) const { return RuntimeEntries[static_cast<int32>(Type)]; }
-	
+
+
 	virtual void PostInitializeAssetGenerator() override;
 	virtual void CreateAssetPackage() override final;
 	virtual void OnExistingPackageLoaded() override final;
-	
+
 	virtual void PopulateMaterialWithData(UMaterial* Asset, FMaterialLayoutChangeInfo& OutLayoutChangeInfo);
 	virtual bool IsMaterialUpToDate(UMaterial* Asset, FMaterialLayoutChangeInfo& OutLayoutChangeInfo) const;
-	
+
 	void PopulateLayoutChangeInfoForNewMaterial(FMaterialLayoutChangeInfo& OutLayoutChangeInfo) const;
 	void TryApplyMaterialLayoutChange(UMaterial* Material, FMaterialLayoutChangeInfo& LayoutChangeInfo);
 	void ApplyLayoutChangelistToMaterial(UMaterial* Material, FMaterialLayoutChangeInfo& LayoutChangeInfo, bool bSoftMerge);
@@ -132,7 +129,7 @@ protected:
 	static void CleanupStubMaterialNodes(UMaterial* Material);
 	static void TryConnectBasicMaterialPins(UMaterial* Material);
 	static void ConnectDummyParameterNodes(UMaterial* Material);
-	
+
 	static void DetectMaterialExpressionChanges(const FMaterialCachedExpressionData& OldData, const FMaterialCachedExpressionData& NewData, FMaterialLayoutChangeInfo& ChangeInfo);
 	static void DetectMaterialParameterChanges(const FMaterialCachedParameters& OldParams, const FMaterialCachedParameters& NewParams, FMaterialLayoutChangeInfo& ChangeInfo);
 	static void AddNewParameterInfo(const FMaterialCachedParameters& Params, int32 Index, EMaterialParameterType Type, const FMaterialParameterInfo& ParameterInfo, FMaterialLayoutChangeInfo& ChangeInfo);
@@ -150,11 +147,11 @@ public:
 	static FVector2D GetGoodPlaceForNewMaterialExpression(UMaterial* Material);
 	static void ForceMaterialCompilation(UMaterial* Material);
 	static void ConnectBasicParameterPinsIfPossible(UMaterial* Material, const FString& ErrorMessage);
-	
+
 	template<typename T>
 	FORCEINLINE static T* SpawnMaterialExpression(UMaterial* Material, UClass* ExpressionClass = T::StaticClass()) {
 		const FVector2D NodePos = GetGoodPlaceForNewMaterialExpression(Material);
-		T* NewMaterialExpression =  CastChecked<T>(UMaterialEditingLibrary::CreateMaterialExpressionEx(Material, NULL, ExpressionClass, NULL, NodePos.X, NodePos.Y));
+		T* NewMaterialExpression = CastChecked<T>(UMaterialEditingLibrary::CreateMaterialExpressionEx(Material, NULL, ExpressionClass, NULL, NodePos.X, NodePos.Y));
 
 		if (Material->MaterialGraph) {
 			Material->MaterialGraph->AddExpression(NewMaterialExpression, false);

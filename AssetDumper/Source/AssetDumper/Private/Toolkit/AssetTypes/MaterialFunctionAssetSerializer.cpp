@@ -9,10 +9,10 @@
 
 void UMaterialFunctionAssetSerializer::SerializeAsset(TSharedRef<FSerializationContext> Context) const {
 	BEGIN_ASSET_SERIALIZATION(UMaterialFunction)
-	UMaterialAssetSerializer::DisableMaterialFunctionSerialization(Serializer);
-	
-	SERIALIZE_ASSET_OBJECT
-	END_ASSET_SERIALIZATION
+		//UMaterialAssetSerializer::DisableMaterialFunctionSerialization(Serializer);
+
+		SERIALIZE_ASSET_OBJECT
+		END_ASSET_SERIALIZATION
 }
 
 FName UMaterialFunctionAssetSerializer::GetAssetClass() const {

@@ -5,6 +5,7 @@
 #include "Toolkit/ObjectHierarchySerializer.h"
 #include "Toolkit/PropertySerializer.h"
 #include "Toolkit/AssetDumping/AssetTypeSerializerMacros.h"
+#include "StaticParameterSet.h"
 #include "Toolkit/AssetTypeGenerator/MaterialGenerator.h"
 
 void UMaterialInstanceGenerator::PostInitializeAssetGenerator() {
@@ -24,9 +25,9 @@ void UMaterialInstanceGenerator::PostInitializeAssetGenerator() {
 	DISABLE_SERIALIZATION(FVectorParameterValue, ExpressionGUID);
 	DISABLE_SERIALIZATION(FTextureParameterValue, ExpressionGUID);
 	DISABLE_SERIALIZATION(FFontParameterValue, ExpressionGUID);
-	DISABLE_SERIALIZATION(FRuntimeVirtualTextureParameterValue, ExpressionGUID);
+	//	DISABLE_SERIALIZATION(FRuntimeVirtualTextureParameterValue, ExpressionGUID);
 
-	//do not deserialize material layers, we do not regenerate materials functions anyway
+		//do not deserialize material layers, we do not regenerate materials functions anyway
 	DISABLE_SERIALIZATION(FStaticParameterSet, MaterialLayersParameters);
 	DISABLE_SERIALIZATION(FStaticParameterSet, TerrainLayerWeightParameters);
 
@@ -60,12 +61,12 @@ void UMaterialInstanceGenerator::PopulateStageDependencies(TArray<FPackageDepend
 
 		TArray<int32> AssetUserDataObjectIndices;
 		for (const TSharedPtr<FJsonValue>& ObjectIndexValue : AssetUserDataObjects) {
-			AssetUserDataObjectIndices.Add((int32) ObjectIndexValue->AsNumber());
+			AssetUserDataObjectIndices.Add((int32)ObjectIndexValue->AsNumber());
 		}
-		
+
 		TArray<FString> ReferencedPackages;
 		for (const TSharedPtr<FJsonValue>& ObjectIndexValue : ReferencedObjects) {
-			const int32 ObjectIndex = (int32) ObjectIndexValue->AsNumber();
+			const int32 ObjectIndex = (int32)ObjectIndexValue->AsNumber();
 
 			if (!AssetUserDataObjectIndices.Contains(ObjectIndex)) {
 				GetObjectSerializer()->CollectObjectPackages(ObjectIndex, ReferencedPackages);
@@ -73,10 +74,10 @@ void UMaterialInstanceGenerator::PopulateStageDependencies(TArray<FPackageDepend
 		}
 
 		for (const FString& DependencyPackageName : ReferencedPackages) {
-			AssetDependencies.Add(FPackageDependency{*DependencyPackageName, EAssetGenerationStage::CDO_FINALIZATION});
+			AssetDependencies.Add(FPackageDependency{ *DependencyPackageName, EAssetGenerationStage::CDO_FINALIZATION });
 		}
 	}
-	
+
 	if (GetCurrentStage() == EAssetGenerationStage::PRE_FINSHED) {
 		TArray<FString> ReferencedPackages;
 		const TSharedPtr<FJsonObject> AssetData = GetAssetData();
@@ -85,11 +86,11 @@ void UMaterialInstanceGenerator::PopulateStageDependencies(TArray<FPackageDepend
 		const TArray<TSharedPtr<FJsonValue>> AssetUserDataObjects = AssetObjectProperties->GetArrayField(TEXT("AssetUserData"));
 
 		for (const TSharedPtr<FJsonValue>& AssetObjectValue : AssetUserDataObjects) {
-			const int32 ObjectIndex = (int32) AssetObjectValue->AsNumber();
+			const int32 ObjectIndex = (int32)AssetObjectValue->AsNumber();
 			GetObjectSerializer()->CollectObjectPackages(ObjectIndex, ReferencedPackages);
 		}
 		for (const FString& PackageName : ReferencedPackages) {
-			AssetDependencies.Add(FPackageDependency{*PackageName, EAssetGenerationStage::CDO_FINALIZATION});	
+			AssetDependencies.Add(FPackageDependency{ *PackageName, EAssetGenerationStage::CDO_FINALIZATION });
 		}
 	}
 }
@@ -97,10 +98,10 @@ void UMaterialInstanceGenerator::PopulateStageDependencies(TArray<FPackageDepend
 void UMaterialInstanceGenerator::PreFinishAssetGeneration() {
 	UMaterialInterface* Asset = GetAsset<UMaterialInterface>();
 	const TSharedPtr<FJsonObject> AssetObjectProperties = GetAssetData()->GetObjectField(TEXT("AssetObjectData"));
-	
+
 	void* AssetUserData = AssetUserDataProperty->ContainerPtrToValuePtr<void>(Asset);
 	const TSharedPtr<FJsonValue> AssetUserDataJson = AssetObjectProperties->GetField<EJson::Array>(TEXT("AssetUserData"));
-	
+
 	GetPropertySerializer()->DeserializePropertyValue(AssetUserDataProperty, AssetUserDataJson.ToSharedRef(), AssetUserData);
 }
 
@@ -120,12 +121,12 @@ void EnsureStaticSwitchNodesPresent(UMaterial* Material, const FStaticParameterS
 	}
 
 	bool bMaterialGraphChanged = false;
-	
+
 	for (const FStaticSwitchParameter& StaticSwitchParameter : StaticParameters.StaticSwitchParameters) {
 		if (!ExistingParameters.Contains(StaticSwitchParameter.ParameterInfo.Name)) {
-			 UMaterialExpressionStaticSwitchParameter* Parameter = UMaterialGenerator::SpawnMaterialExpression<UMaterialExpressionStaticSwitchParameter>(Material);
-			 Parameter->SetParameterName(StaticSwitchParameter.ParameterInfo.Name);
-			 bMaterialGraphChanged = true;
+			UMaterialExpressionStaticSwitchParameter* Parameter = UMaterialGenerator::SpawnMaterialExpression<UMaterialExpressionStaticSwitchParameter>(Material);
+			Parameter->SetParameterName(StaticSwitchParameter.ParameterInfo.Name);
+			bMaterialGraphChanged = true;
 		}
 	}
 
@@ -158,20 +159,28 @@ void UMaterialInstanceGenerator::PopulateSimpleAssetWithData(UObject* Asset) {
 
 	EnsureStaticSwitchNodesPresent(ParentMaterial, StaticParameterOverrides);
 	MaterialInstance->UpdateStaticPermutation(StaticParameterOverrides);
-	
+
 	//Regenerate ExpressionGUID values on updated parameter values by calling UpdateParameters()
 	//but since it's protected we're calling post load instead, even though it does a little bit more than that, but who cares
 	MaterialInstance->PostLoad();
 }
 
+bool operator==(const FStaticSwitchParameter& a, const FStaticSwitchParameter& b) {
+	return a.bOverride == b.bOverride && a.ExpressionGUID == b.ExpressionGUID && a.ParameterInfo == b.ParameterInfo && a.Value == b.Value;
+}
+
+bool operator==(const FStaticComponentMaskParameter& a, const FStaticComponentMaskParameter& b) {
+	return a.A == b.A && a.B == b.B && a.bOverride == b.bOverride && a.ExpressionGUID == b.ExpressionGUID && a.G == b.G && a.ParameterInfo == b.ParameterInfo && a.R == b.R;
+}
+
 bool UMaterialInstanceGenerator::IsSimpleAssetUpToDate(UObject* Asset) const {
 	UMaterialInstanceConstant* MaterialInstance = CastChecked<UMaterialInstanceConstant>(Asset);
 	const TSharedPtr<FJsonObject> AssetObjectProperties = GetAssetData()->GetObjectField(TEXT("AssetObjectData"));
-	
+
 	if (!Super::IsSimpleAssetUpToDate(Asset)) {
 		return false;
 	}
-	
+
 	const void* AssetUserData = AssetUserDataProperty->ContainerPtrToValuePtr<void>(Asset);
 	const TSharedPtr<FJsonValue> AssetUserDataJson = AssetObjectProperties->GetField<EJson::Array>(TEXT("AssetUserData"));
 

@@ -8,7 +8,7 @@ void SAssetDumpConsoleWidget::Construct(const FArguments& InArgs, TSharedRef<FAs
 	this->AssetDumpProcessor = DumpProcessor;
 	this->MessagesTextMarshaller = FAssetDumpConsoleTextLayoutMarshaller::Create();
 	GLog->AddOutputDevice(this);
-	
+
 	this->MessagesTextBox = SNew(SMultiLineEditableTextBox)
 		.Marshaller(MessagesTextMarshaller)
 		.IsReadOnly(true)
@@ -18,31 +18,31 @@ void SAssetDumpConsoleWidget::Construct(const FArguments& InArgs, TSharedRef<FAs
 
 	ChildSlot[
 		SNew(SVerticalBox)
-		+SVerticalBox::Slot().HAlign(HAlign_Fill).FillHeight(1.0f)[
-			SNew(SBorder)
-	        .Padding(3)[
-	            MessagesTextBox.ToSharedRef()
-	        ]
-		]
-		+SVerticalBox::Slot().VAlign(VAlign_Bottom).AutoHeight()[
-			SNew(SBox)
-			.HeightOverride(20.0f)
-			.Content()[
-				SNew(SOverlay)
-				+SOverlay::Slot().HAlign(HAlign_Fill).VAlign(VAlign_Fill)[
-					SNew(SProgressBar)
-					.Percent_Lambda([this](){
-						return AssetDumpProcessor.IsValid() ? AssetDumpProcessor->GetProgressPct() : 1.0f;
-					})
-				]
-				+SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Center)[
-					SNew(STextBlock)
-					.Text_Raw(this, &SAssetDumpConsoleWidget::GetProgressBarText)
-				]
+			+ SVerticalBox::Slot().HAlign(HAlign_Fill).FillHeight(1.0f)[
+				SNew(SBorder)
+					.Padding(3)[
+						MessagesTextBox.ToSharedRef()
+					]
 			]
-		]
+			+ SVerticalBox::Slot().VAlign(VAlign_Bottom).AutoHeight()[
+				SNew(SBox)
+					.HeightOverride(20.0f)
+					.Content()[
+						SNew(SOverlay)
+							+ SOverlay::Slot().HAlign(HAlign_Fill).VAlign(VAlign_Fill)[
+								SNew(SProgressBar)
+									.Percent_Lambda([this]() {
+									return AssetDumpProcessor.IsValid() ? AssetDumpProcessor->GetProgressPct() : 1.0f;
+										})
+							]
+							+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Center)[
+								SNew(STextBlock)
+									.Text_Raw(this, &SAssetDumpConsoleWidget::GetProgressBarText)
+							]
+					]
+			]
 	];
-	
+
 	this->bIsUserScrolled = false;
 	this->MessagesTextBox->Refresh();
 	this->MessagesTextMarshaller->SubmitPendingMessages();
@@ -77,7 +77,8 @@ FText SAssetDumpConsoleWidget::GetProgressBarText() const {
 			ProgressBarDisplayText = FText::Format(LOCTEXT("AssetDumping_DumpFinished", "Dumping finished: {0} packages processed, {1} skipped"),
 				FText::FromString(FString::FromInt(AssetDumpProcessor->GetPackagesProcessed())),
 				FText::FromString(FString::FromInt(AssetDumpProcessor->GetPackagesSkipped())));
-		} else {
+		}
+		else {
 			ProgressBarDisplayText = FText::Format(LOCTEXT("AssetDumping_DumpInProgress", "Dumping in progress: {0}% ({1}/{2})"),
 				FText::FromString(FString::FromInt(FMath::RoundToInt(AssetDumpProcessor->GetProgressPct() * 100))),
 				FText::FromString(FString::FromInt(AssetDumpProcessor->GetPackagesSkipped() + AssetDumpProcessor->GetPackagesProcessed())),
@@ -98,7 +99,7 @@ SAssetDumpConsoleWidget::SAssetDumpConsoleWidget() {
 
 void SAssetDumpConsoleWidget::RequestForceScroll() {
 	if (MessagesTextMarshaller->GetNumMessages() > 0) {
-		MessagesTextBox->ScrollTo(ETextLocation::EndOfDocument);
+		//MessagesTextBox->ScrollTo(ETextLocation::EndOfDocument);
 		bIsUserScrolled = false;
 	}
 }
@@ -109,9 +110,9 @@ void SAssetDumpConsoleWidget::Serialize(const TCHAR* V, ELogVerbosity::Type Verb
 
 TSharedRef<SWindow> SAssetDumpConsoleWidget::CreateForAssetDumper(TSharedRef<FAssetDumpProcessor> DumpProcessor) {
 	TSharedRef<SWindow> Window = SNew(SWindow)
-                    .Title(LOCTEXT("AssetDumper_ConsoleTitle", "Asset Dumping Log"))
-                    .MinWidth(800).MinHeight(600)
-                    .AutoCenter(EAutoCenter::PreferredWorkArea);
+		.Title(LOCTEXT("AssetDumper_ConsoleTitle", "Asset Dumping Log"))
+		.MinWidth(800).MinHeight(600)
+		.AutoCenter(EAutoCenter::PreferredWorkArea);
 	Window->SetContent(SNew(SAssetDumpConsoleWidget, DumpProcessor));
 
 	const TSharedRef<SWindow> ParentWindow = FGameEditorHelper::GetMainWindow().ToSharedRef();
@@ -146,12 +147,14 @@ bool FAssetDumpConsoleTextLayoutMarshaller::AppendPendingMessage(const TCHAR* In
 	FName Style;
 	if (InVerbosity == ELogVerbosity::Error) {
 		Style = FName(TEXT("Log.Error"));
-	} else if (InVerbosity == ELogVerbosity::Warning) {
+	}
+	else if (InVerbosity == ELogVerbosity::Warning) {
 		Style = FName(TEXT("Log.Warning"));
-	} else {
+	}
+	else {
 		Style = FName(TEXT("Log.Normal"));
 	}
-	
+
 	const int32 OldNumMessages = Messages.Num();
 
 	// handle multiline strings by breaking them apart by line
@@ -164,7 +167,7 @@ bool FAssetDumpConsoleTextLayoutMarshaller::AppendPendingMessage(const TCHAR* In
 		if (LineRange.IsEmpty()) {
 			continue;
 		}
-		
+
 		FString Line = CurrentLogDump.Mid(LineRange.BeginIndex, LineRange.Len());
 		Line = Line.ConvertTabsToSpaces(4);
 
@@ -174,12 +177,13 @@ bool FAssetDumpConsoleTextLayoutMarshaller::AppendPendingMessage(const TCHAR* In
 			int32 HardWrapLineLen;
 			if (bIsFirstLineInMessage) {
 				FString MessagePrefix = FOutputDeviceHelper::FormatLogLine(InVerbosity, InCategory, nullptr, ELogTimes::None);
-						
+
 				HardWrapLineLen = FMath::Min(HardWrapLen - MessagePrefix.Len(), Line.Len() - CurrentStartIndex);
 				FString HardWrapLine = Line.Mid(CurrentStartIndex, HardWrapLineLen);
 
 				Messages.Add(MakeShared<FAssetDumpLogMessage>(MakeShared<FString>(MessagePrefix + HardWrapLine), InVerbosity, InCategory, Style));
-			} else {
+			}
+			else {
 				HardWrapLineLen = FMath::Min(HardWrapLen, Line.Len() - CurrentStartIndex);
 				FString HardWrapLine = Line.Mid(CurrentStartIndex, HardWrapLineLen);
 
@@ -218,7 +222,8 @@ void FAssetDumpConsoleTextLayoutMarshaller::AppendPendingMessagesToTextLayout() 
 		if (bWasEmpty) {
 			TextLayout->ClearLines();
 		}
-	} else {
+	}
+	else {
 		MakeDirty();
 	}
 
@@ -251,7 +256,7 @@ FAssetDumpConsoleTextLayoutMarshaller::FAssetDumpConsoleTextLayoutMarshaller() {
 	this->TextLayout = NULL;
 
 	const FTextBlockStyle& NormalTextStyle = FCoreStyle::Get().GetWidgetStyle<FTextBlockStyle>(TEXT("NormalText"));
-	
+
 	FTextBlockStyle NormalLogStyle = NormalTextStyle;
 	NormalLogStyle.ColorAndOpacity = FLinearColor::Gray;
 	this->LogMessageStyles.Add(TEXT("Log.Normal"), NormalLogStyle);

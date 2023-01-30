@@ -11,21 +11,21 @@
 void UUserWidgetGenerator::PostInitializeAssetGenerator() {
 	//TEMPFIX: Fix for old dumps that have this data serialized, we should never attempt to load it
 	UPropertySerializer* Serializer = GetPropertySerializer();
-	DISABLE_SERIALIZATION(FMovieSceneEvent, Ptrs);
+	//	DISABLE_SERIALIZATION(FMovieSceneEvent, Ptrs);
 
-	//TEMPFIX: Disable deserialization of these 2 properties, they are set by the editor automatically
+		//TEMPFIX: Disable deserialization of these 2 properties, they are set by the editor automatically
 	DISABLE_SERIALIZATION_RAW(UUserWidget, "bHasScriptImplementedTick");
 	DISABLE_SERIALIZATION_RAW(UUserWidget, "bHasScriptImplementedPaint");
 }
 
 UBlueprint* UUserWidgetGenerator::CreateNewBlueprint(UPackage* Package, UClass* ParentClass) {
 	EBlueprintType BlueprintType = BPTYPE_Normal;
-	
+
 	if (ParentClass == UInterface::StaticClass()) {
 		BlueprintType = BPTYPE_Interface;
 	}
 	return CastChecked<UWidgetBlueprint>(FKismetEditorUtilities::CreateBlueprint(ParentClass, Package, GetAssetName(),
-		BlueprintType, UWidgetBlueprint::StaticClass(),UWidgetBlueprintGeneratedClass::StaticClass()));
+		BlueprintType, UWidgetBlueprint::StaticClass(), UWidgetBlueprintGeneratedClass::StaticClass()));
 }
 
 void UUserWidgetGenerator::FinalizeAssetCDO() {
@@ -43,13 +43,13 @@ void UUserWidgetGenerator::FinalizeAssetCDO() {
 
 		//Trash out old widget tree so it does not interfere with the newly generated one
 		MoveToTransientPackageAndRename(WidgetBlueprint->WidgetTree);
-		
+
 		//Since deserialized widget tree is the original tree copied to BPGC, renamed and with flags changed,
 		//we need to duplicate it with the correct name, outer and flags, and only then assign to the blueprint
 		UObject* DuplicatedWidgetTree = DuplicateObject(NewWidgetTree, WidgetBlueprint, TEXT("WidgetTree"));
 		DuplicatedWidgetTree->ClearFlags(RF_Transient);
 		DuplicatedWidgetTree->SetFlags(RF_Public | RF_DefaultSubObject | RF_Transactional | RF_ArchetypeObject);
-		
+
 		WidgetBlueprint->WidgetTree = CastChecked<UWidgetTree>(DuplicatedWidgetTree);
 
 		UpdateDeserializerBlueprintClassObject(true);
@@ -58,13 +58,13 @@ void UUserWidgetGenerator::FinalizeAssetCDO() {
 
 	const TArray<TSharedPtr<FJsonValue>> Animations = AssetObjectData->GetArrayField(TEXT("Animations"));
 	bool bWidgetAnimationsChanged = true;
-	
+
 	if (Animations.Num() == WidgetBlueprint->Animations.Num()) {
 		bWidgetAnimationsChanged = false;
-		
+
 		for (int32 i = 0; i < Animations.Num(); i++) {
 			UObject* Animation = WidgetBlueprint->Animations[i];
-			const int32 AnimationObjectIndex = (int32) Animations[i]->AsNumber();
+			const int32 AnimationObjectIndex = (int32)Animations[i]->AsNumber();
 
 			const TSharedRef<FObjectCompareContext> CompareContext = MakeShareable(new FObjectCompareContext);
 			CompareContext->SetObjectSettings(AnimationObjectIndex, FObjectCompareSettings(false, false));
@@ -91,7 +91,7 @@ void UUserWidgetGenerator::FinalizeAssetCDO() {
 
 		//Deserialize new animations into the array directly
 		for (const TSharedPtr<FJsonValue>& Animation : Animations) {
-			UObject* AnimationObject = GetObjectSerializer()->DeserializeObject((int32) Animation->AsNumber());
+			UObject* AnimationObject = GetObjectSerializer()->DeserializeObject((int32)Animation->AsNumber());
 
 			//Rename animation object because it has the _INST suffix emitted by the blueprint compiler
 			const FString AnimationName = AnimationObject->GetName();
@@ -126,11 +126,11 @@ void UUserWidgetGenerator::PopulateStageDependencies(TArray<FPackageDependency>&
 
 		const TArray<TSharedPtr<FJsonValue>> Animations = AssetObjectData->GetArrayField(TEXT("Animations"));
 		for (const TSharedPtr<FJsonValue>& AnimationValue : Animations) {
-			GetObjectSerializer()->CollectObjectPackages((int32) AnimationValue->AsNumber(), AdditionalWidgetDependencies);
+			GetObjectSerializer()->CollectObjectPackages((int32)AnimationValue->AsNumber(), AdditionalWidgetDependencies);
 		}
 
 		for (const FString& PackageName : AdditionalWidgetDependencies) {
-			AssetDependencies.Add(FPackageDependency{*PackageName, EAssetGenerationStage::CDO_FINALIZATION});
+			AssetDependencies.Add(FPackageDependency{ *PackageName, EAssetGenerationStage::CDO_FINALIZATION });
 		}
 	}
 }

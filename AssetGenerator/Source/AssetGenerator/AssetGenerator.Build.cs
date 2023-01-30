@@ -7,14 +7,14 @@ public class AssetGenerator : ModuleRules
     public AssetGenerator(ReadOnlyTargetRules Target) : base(Target)
     {
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
-        
+
 #if UE_4_24_OR_LATER
         bLegacyPublicIncludePaths = false;
         ShadowVariableWarningLevel = WarningLevel.Off;
-#endif     
-        
+#endif
+
         PublicDependencyModuleNames.AddRange(new[] {
-            "Core", 
+            "Core",
             "CoreUObject",
             "Engine",
             "InputCore",
@@ -26,17 +26,17 @@ public class AssetGenerator : ModuleRules
             "Projects",
             "Landscape",
             "Json",
-			"UnrealEd",
+            "UnrealEd",
             "UMGEditor",
-			"BlueprintGraph",
+            "BlueprintGraph",
             "MovieSceneTracks",
             "AssetDumper"
         });
-        
-		PrivateDependencyModuleNames.AddRange(new[] {
+
+        PrivateDependencyModuleNames.AddRange(new[] {
             "DesktopPlatform",
             "MaterialEditor",
-            "RHI", 
+            "RHI",
             "AnimGraph",
             "Kismet",
             "WorkspaceMenuStructure",
@@ -49,6 +49,6 @@ public class AssetGenerator : ModuleRules
 #if UE_4_26_OR_LATER
 	    PrivateDependencyModuleNames.Add("DeveloperSettings");
 #endif
-        
+
     }
 }

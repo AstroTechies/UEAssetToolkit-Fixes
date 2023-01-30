@@ -1,14 +1,16 @@
 ﻿#include "Toolkit/AssetTypeGenerator/TextureGenerator.h"
 #include "IImageWrapper.h"
 #include "IImageWrapperModule.h"
+#include "Engine/Texture.h"
+#include "Modules/ModuleManager.h"
 #include "Toolkit/ObjectHierarchySerializer.h"
 
 void UTextureGenerator::CreateAssetPackage() {
 	UPackage* Package = CreatePackage(
 #if ENGINE_MINOR_VERSION < 26
-	nullptr, 
+		nullptr,
 #endif
-*GetPackageName().ToString());
+		* GetPackageName().ToString());
 	UTexture* Texture = NewObject<UTexture>(Package, GetTextureClass(), GetAssetName(), RF_Public | RF_Standalone);
 	SetPackageAndAsset(Package, Texture);
 
@@ -18,7 +20,7 @@ void UTextureGenerator::CreateAssetPackage() {
 
 void UTextureGenerator::OnExistingPackageLoaded() {
 	UTexture* Asset = GetAsset<UTexture>();
-	
+
 	UObjectHierarchySerializer* ObjectSerializer = GetObjectSerializer();
 	const TSharedPtr<FJsonObject> AssetData = GetAssetObjectData();
 
@@ -32,11 +34,12 @@ void UTextureGenerator::OnExistingPackageLoaded() {
 	const int32 TextureWidth = GetAssetData()->GetIntegerField(TEXT("TextureWidth"));
 	const int32 TextureHeight = GetAssetData()->GetIntegerField(TEXT("TextureHeight"));
 	const int32 NumSlices = GetAssetData()->GetIntegerField(TEXT("NumSlices"));
-	
+
 	FString NewTextureHash;
 	if (!IsGeneratingPublicProject()) {
 		NewTextureHash = GetAssetData()->GetStringField(TEXT("SourceImageHash"));
-	} else {
+	}
+	else {
 		NewTextureHash = ComputeBlankTextureHash(TextureWidth, TextureHeight, NumSlices);
 	}
 
@@ -60,7 +63,8 @@ void UTextureGenerator::UpdateTextureSource(UTexture* Texture) {
 
 	if (!IsGeneratingPublicProject()) {
 		SetTextureSourceToDumpFile(Texture);
-	} else {
+	}
+	else {
 		SetTextureSourceToWhite(Texture);
 	}
 	Texture->UpdateResource();
@@ -69,7 +73,7 @@ void UTextureGenerator::UpdateTextureSource(UTexture* Texture) {
 
 void UTextureGenerator::SetTextureSourceToDumpFile(UTexture* Texture) {
 	const FString ImageFilePath = GetAdditionalDumpFilePath(TEXT(""), TEXT("png"));
-	
+
 	IImageWrapperModule& ImageWrapperModule = FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
 	const TSharedPtr<IImageWrapper> ImageWrapper = ImageWrapperModule.CreateImageWrapper(EImageFormat::PNG);
 
@@ -79,14 +83,14 @@ void UTextureGenerator::SetTextureSourceToDumpFile(UTexture* Texture) {
 	check(ImageWrapper->SetCompressed(CompressedFileData.GetData(), CompressedFileData.Num() * sizeof(uint8)));
 	CompressedFileData.Empty();
 
-	TArray64<uint8> ResultUncompressedData;
+	const TArray<uint8>* ResultUncompressedData = nullptr;
 	check(ImageWrapper->GetRaw(ERGBFormat::BGRA, 8, ResultUncompressedData));
-	
+
 	uint8* LockedMipData = Texture->Source.LockMip(0);
 	const int64 MipMapSize = Texture->Source.CalcMipSize(0);
-	check(ResultUncompressedData.Num() == MipMapSize);
-	
-	FMemory::Memcpy(LockedMipData, ResultUncompressedData.GetData(), MipMapSize);
+	check(ResultUncompressedData->Num() == MipMapSize);
+
+	FMemory::Memcpy(LockedMipData, ResultUncompressedData->GetData(), MipMapSize);
 	Texture->Source.UnlockMip(0);
 }
 
@@ -122,7 +126,7 @@ FString UTextureGenerator::ComputeBlankTextureHash(int32 Width, int32 Height, in
 		PrecomputedCaches.Add(TextureSize, TextureHash);
 		return TextureHash;
 	}
-	return PrecomputedCaches.FindChecked(TextureSize);	
+	return PrecomputedCaches.FindChecked(TextureSize);
 }
 
 

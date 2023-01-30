@@ -9,12 +9,12 @@ using FInlinePackageArray = TArray<FPendingPackageData, TInlineAllocator<16>>;
 #define DEFAULT_PACKAGES_TO_PROCESS_PER_TICK 16
 
 FAssetDumpSettings::FAssetDumpSettings() :
-		RootDumpDirectory(GetDefaultRootDumpDirectory()),
-        MaxPackagesToProcessInOneTick(DEFAULT_PACKAGES_TO_PROCESS_PER_TICK),
-        bForceSingleThread(false),
-        bOverwriteExistingAssets(true),
-		bExitOnFinish(false),
-		GarbageCollectionInterval(10.0f) {
+	RootDumpDirectory(GetDefaultRootDumpDirectory()),
+	MaxPackagesToProcessInOneTick(DEFAULT_PACKAGES_TO_PROCESS_PER_TICK),
+	bForceSingleThread(false),
+	bOverwriteExistingAssets(true),
+	bExitOnFinish(false),
+	GarbageCollectionInterval(10.0f) {
 }
 
 FString FAssetDumpSettings::GetDefaultRootDumpDirectory() {
@@ -41,11 +41,11 @@ FAssetDumpProcessor::~FAssetDumpProcessor() {
 	//Unroot all currently unprocessed UPackages and make sure we have no in-fly package load requests,
 	//which will crash trying to call our method upon finishing after we've been destructed
 	check(PackageLoadRequestsInFlyCounter.GetValue() == 0);
-	
+
 	for (const FPendingPackageData& PackageData : this->LoadedPackages) {
 		PackageData.AssetObject->RemoveFromRoot();
 	}
-	
+
 	this->LoadedPackages.Empty();
 	this->AssetDataByPackageName.Empty();
 	this->PackagesToLoad.Empty();
@@ -53,7 +53,7 @@ FAssetDumpProcessor::~FAssetDumpProcessor() {
 
 TSharedRef<FAssetDumpProcessor> FAssetDumpProcessor::StartAssetDump(const FAssetDumpSettings& Settings, const TArray<FAssetData>& InAssets) {
 	checkf(!ActiveDumpProcessor.IsValid(), TEXT("StartAssetDump is called while another asset dump is in progress"));
-	
+
 	TSharedRef<FAssetDumpProcessor> NewProcessor = MakeShareable(new FAssetDumpProcessor(Settings, InAssets));
 	ActiveDumpProcessor = NewProcessor;
 	return NewProcessor;
@@ -61,7 +61,7 @@ TSharedRef<FAssetDumpProcessor> FAssetDumpProcessor::StartAssetDump(const FAsset
 
 TSharedRef<FAssetDumpProcessor> FAssetDumpProcessor::StartAssetDump(const FAssetDumpSettings& Settings, const TMap<FName, FAssetData>& InAssets) {
 	checkf(!ActiveDumpProcessor.IsValid(), TEXT("StartAssetDump is called while another asset dump is in progress"));
-	
+
 	TSharedRef<FAssetDumpProcessor> NewProcessor = MakeShareable(new FAssetDumpProcessor(Settings, InAssets));
 	ActiveDumpProcessor = NewProcessor;
 	return NewProcessor;
@@ -76,12 +76,12 @@ void FAssetDumpProcessor::Tick(float DeltaTime) {
 		this->TimeSinceGarbageCollection = 0.0f;
 		CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
 	}
-	
+
 	//Load packages as long as we have space in queue + packages to process
 	while (PackageLoadRequestsInFlyCounter.GetValue() < MaxLoadRequestsInFly &&
-			PackagesWaitingForProcessing.GetValue() < MaxPackagesInProcessQueue	&&
-			CurrentPackageToLoadIndex < PackagesToLoad.Num()) {
-		
+		PackagesWaitingForProcessing.GetValue() < MaxPackagesInProcessQueue &&
+		CurrentPackageToLoadIndex < PackagesToLoad.Num()) {
+
 		//Associate package data with the package name (so we can find it later in async load request handler and increment counter)
 		FAssetData* AssetDataToLoadNext = &PackagesToLoad[CurrentPackageToLoadIndex++];
 		this->AssetDataByPackageName.Add(AssetDataToLoadNext->PackageName, AssetDataToLoadNext);
@@ -97,11 +97,11 @@ void FAssetDumpProcessor::Tick(float DeltaTime) {
 
 	//Lock packages array and copy elements from it
 	this->LoadedPackagesCriticalSection.Lock();
-	
+
 	const int32 ElementsToCopy = FMath::Min(LoadedPackages.Num(), MaxPackagesToProcessInOneTick);
 	PackagesToProcessThisTick.Append(LoadedPackages.GetData(), ElementsToCopy);
 	LoadedPackages.RemoveAt(0, ElementsToCopy, false);
-	PackagesWaitingForProcessing.Subtract(ElementsToCopy);	
+	PackagesWaitingForProcessing.Subtract(ElementsToCopy);
 
 	this->LoadedPackagesCriticalSection.Unlock();
 
@@ -111,19 +111,16 @@ void FAssetDumpProcessor::Tick(float DeltaTime) {
 	for (const FPendingPackageData& PackageData : PackagesToProcessThisTick) {
 		if (PackageData.Serializer->SupportsParallelDumping()) {
 			PackagesToProcessParallel.Add(PackageData);
-		} else {
+		}
+		else {
 			PackagesToProcessInMainThread.Add(PackageData);
 		}
 	}
 
 	if (PackagesToProcessParallel.Num()) {
-		EParallelForFlags ParallelFlags = EParallelForFlags::Unbalanced;
-		if (Settings.bForceSingleThread) {
-			ParallelFlags |= EParallelForFlags::ForceSingleThread;
-		}
 		ParallelFor(PackagesToProcessParallel.Num(), [this, &PackagesToProcessParallel](const int32 PackageIndex) {
-            PerformAssetDumpForPackage(PackagesToProcessParallel[PackageIndex]);
-        }, ParallelFlags);
+			PerformAssetDumpForPackage(PackagesToProcessParallel[PackageIndex]);
+			}, Settings.bForceSingleThread);
 	}
 
 	if (PackagesToProcessInMainThread.Num()) {
@@ -141,7 +138,8 @@ void FAssetDumpProcessor::Tick(float DeltaTime) {
 		//If we were requested to exit on finish, do it now
 		if (Settings.bExitOnFinish) {
 			UE_LOG(LogAssetDumper, Display, TEXT("Exiting because bExitOnFinish was set to true in asset dumper settings..."));
-			RequestEngineExit(TEXT("AssetDumper finished working with bExitOnFinish set"));
+
+			//RequestEngineExit(TEXT("AssetDumper finished working with bExitOnFinish set"));
 		}
 
 		//If we represent an active dump processor, make sure to reset ourselves once dumping is done
@@ -164,12 +162,12 @@ void FAssetDumpProcessor::OnPackageLoaded(const FName& PackageName, UPackage* Lo
 
 	check(LoadedPackage);
 	FPendingPackageData PendingPackageData;
-	
+
 	if (!CreatePackageData(LoadedPackage, PendingPackageData)) {
 		this->PackagesSkipped.Increment();
 		return;
 	}
-	
+
 	//Add asset object to the root set so it will not be garbage collected while waiting to be processed
 	PendingPackageData.AssetObject->AddToRoot();
 
@@ -191,7 +189,7 @@ void FAssetDumpProcessor::PerformAssetDumpForPackage(const FPendingPackageData& 
 
 	//Unroot object now, we have processed it already and do not need to keep it in memory anymore
 	PackageData.AssetObject->RemoveFromRoot();
-	
+
 	this->PackagesProcessed.Increment();
 }
 
@@ -220,11 +218,11 @@ bool FAssetDumpProcessor::CreatePackageData(UPackage* Package, FPendingPackageDa
 	checkf(AssetObject, TEXT("Failed to find asset object '%s' inside of the package '%s'"), *AssetData->AssetName.ToString(), *Package->GetPathName());
 
 	const TSharedPtr<FSerializationContext> Context = MakeShareable(new FSerializationContext(Settings.RootDumpDirectory, *AssetData, AssetObject));
-	
+
 	//Check for existing asset files
 	if (!Settings.bOverwriteExistingAssets) {
 		const FString AssetOutputFile = Context->GetDumpFilePath(TEXT(""), TEXT("json"));
-		
+
 		//Skip dumping when we have a dump file already and are not allowed to overwrite assets
 		if (FPlatformFileManager::Get().GetPlatformFile().FileExists(*AssetOutputFile)) {
 			UE_LOG(LogAssetDumper, Display, TEXT("Skipping dumping asset %s, dump file is already present and overwriting is not allowed"), *Package->GetName());
@@ -248,6 +246,6 @@ void FAssetDumpProcessor::InitializeAssetDump() {
 	this->MaxPackagesToProcessInOneTick = Settings.MaxPackagesToProcessInOneTick;
 	this->MaxLoadRequestsInFly = Settings.MaxPackagesToProcessInOneTick;
 	this->MaxPackagesInProcessQueue = Settings.MaxPackagesToProcessInOneTick * 2;
-	
+
 	UE_LOG(LogAssetDumper, Display, TEXT("Starting asset dump of %d packages..."), PackagesTotal);
 }

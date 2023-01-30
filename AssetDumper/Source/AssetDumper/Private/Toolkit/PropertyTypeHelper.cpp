@@ -29,24 +29,24 @@ UObject* DeserializeObjectRef(const FString& ObjectPath, UClass* SelfScope) {
 	if (ObjectPath == TEXT("<SELF>")) {
 		checkf(SelfScope, TEXT("Attempt to deserialize <SELF> object reference, but no scope was provided for self"));
 		return SelfScope;
-		
+
 	}
 	UObject* LoadedObject = LoadObject<UObject>(NULL, *ObjectPath);
 	checkf(LoadedObject, TEXT("Failed to deserializeo object reference %s"), *ObjectPath);
 	return LoadedObject;
 }
 
-FEdGraphPinType FPropertyTypeHelper::DeserializeGraphPinType(const TSharedRef<FJsonObject>& PinJson, UClass* SelfScope) {
+FEdGraphPinType UPropertyTypeHelper::DeserializeGraphPinType(const TSharedRef<FJsonObject>& PinJson, UClass* SelfScope) {
 
 	FEdGraphPinType GraphPinType;
 	GraphPinType.PinCategory = *PinJson->GetStringField(TEXT("PinCategory"));
 	GraphPinType.PinSubCategory = *PinJson->GetStringField(TEXT("PinSubCategory"));
-	
+
 	if (PinJson->HasField(TEXT("PinSubCategoryObject"))) {
 		const FString& ObjectPath = PinJson->GetStringField(TEXT("PinSubCategoryObject"));
 		GraphPinType.PinSubCategoryObject = DeserializeObjectRef(*ObjectPath, SelfScope);
 	}
-	
+
 	if (PinJson->HasField(TEXT("PinSubCategoryMemberReference"))) {
 		FSimpleMemberReference& MemberRef = GraphPinType.PinSubCategoryMemberReference;
 		const TSharedPtr<FJsonObject>& MemberJson = PinJson->GetObjectField(TEXT("PinSubCategoryMemberReference"));
@@ -74,19 +74,19 @@ FEdGraphPinType FPropertyTypeHelper::DeserializeGraphPinType(const TSharedRef<FJ
 	if (PinJson->HasField(TEXT("ContainerType"))) {
 		GraphPinType.ContainerType = static_cast<EPinContainerType>(PinJson->GetIntegerField(TEXT("ContainerType")));
 	}
-	
+
 	if (PinJson->HasField(TEXT("IsReference"))) {
 		GraphPinType.bIsReference = PinJson->GetBoolField(TEXT("IsReference"));
 	}
-	
+
 	if (PinJson->HasField(TEXT("IsConst"))) {
 		GraphPinType.bIsConst = PinJson->GetBoolField(TEXT("IsConst"));
 	}
-	
+
 	if (PinJson->HasField(TEXT("IsWeakPointer"))) {
 		GraphPinType.bIsWeakPointer = PinJson->GetBoolField(TEXT("IsWeakPointer"));
 	}
-	
+
 	return GraphPinType;
 }
 
@@ -94,7 +94,7 @@ FString SerializeObjectRef(UObject* Object, UClass* SelfScope) {
 	return SelfScope && Object == SelfScope ? TEXT("<SELF>") : Object->GetPathName();
 }
 
-TSharedRef<FJsonObject> FPropertyTypeHelper::SerializeGraphPinType(const FEdGraphPinType& GraphPinType, UClass* SelfScope) {
+TSharedRef<FJsonObject> UPropertyTypeHelper::SerializeGraphPinType(const FEdGraphPinType& GraphPinType, UClass* SelfScope) {
 
 	TSharedRef<FJsonObject> TypeEntry = MakeShareable(new FJsonObject());
 	TypeEntry->SetStringField(TEXT("PinCategory"), GraphPinType.PinCategory.ToString());
@@ -106,7 +106,7 @@ TSharedRef<FJsonObject> FPropertyTypeHelper::SerializeGraphPinType(const FEdGrap
 	}
 
 	const FSimpleMemberReference& memberRef = GraphPinType.PinSubCategoryMemberReference;
-	
+
 	if (memberRef.MemberGuid.IsValid()) {
 		TSharedRef<FJsonObject> memberReference = MakeShareable(new FJsonObject());
 		if (memberRef.MemberParent != nullptr) {
@@ -116,7 +116,7 @@ TSharedRef<FJsonObject> FPropertyTypeHelper::SerializeGraphPinType(const FEdGrap
 		memberReference->SetStringField(TEXT("MemberGuid"), memberRef.MemberGuid.ToString());
 		TypeEntry->SetObjectField(TEXT("PinSubCategoryMemberReference"), memberReference);
 	}
-	
+
 	if (GraphPinType.ContainerType == EPinContainerType::Map) {
 		TSharedRef<FJsonObject> pinValueType = MakeShareable(new FJsonObject());
 		pinValueType->SetStringField(TEXT("TerminalCategory"), GraphPinType.PinValueType.TerminalCategory.ToString());
@@ -133,25 +133,25 @@ TSharedRef<FJsonObject> FPropertyTypeHelper::SerializeGraphPinType(const FEdGrap
 	if (GraphPinType.ContainerType != EPinContainerType::None) {
 		TypeEntry->SetNumberField(TEXT("ContainerType"), static_cast<uint8>(GraphPinType.ContainerType));
 	}
-	
+
 	if (GraphPinType.bIsReference) {
 		TypeEntry->SetBoolField(TEXT("IsReference"), GraphPinType.bIsReference);
 	}
-	
+
 	if (GraphPinType.bIsConst) {
 		TypeEntry->SetBoolField(TEXT("IsConst"), GraphPinType.bIsConst);
 	}
-	
+
 	if (GraphPinType.bIsWeakPointer) {
 		TypeEntry->SetBoolField(TEXT("IsWeakPointer"), GraphPinType.bIsWeakPointer);
 	}
-	
+
 	return TypeEntry;
 }
 
-bool GetPropertyCategoryInfo(const FProperty* TestProperty, FName& OutCategory, FName& OutSubCategory, UObject*& OutSubCategoryObject, bool& bOutIsWeakPointer);
+bool GetPropertyCategoryInfo(const UProperty* TestProperty, FName& OutCategory, FName& OutSubCategory, UObject*& OutSubCategoryObject, bool& bOutIsWeakPointer);
 
-bool FPropertyTypeHelper::ConvertPropertyToPinType(const FProperty* Property, /*out*/ FEdGraphPinType& TypeOut) {
+bool UPropertyTypeHelper::ConvertPropertyToPinType(const UProperty* Property, /*out*/ FEdGraphPinType& TypeOut) {
 	if (Property == nullptr) {
 		TypeOut.PinCategory = TEXT("bad_type");
 		return false;
@@ -160,10 +160,10 @@ bool FPropertyTypeHelper::ConvertPropertyToPinType(const FProperty* Property, /*
 	TypeOut.PinSubCategory = NAME_None;
 
 	// Handle whether or not this is an array property
-	const FMapProperty* MapProperty = CastField<const FMapProperty>(Property);
-	const FSetProperty* SetProperty = CastField<const FSetProperty>(Property);
-	const FArrayProperty* ArrayProperty = CastField<const FArrayProperty>(Property);
-	const FProperty* TestProperty = Property;
+	const UMapProperty* MapProperty = Cast<const UMapProperty>(Property);
+	const USetProperty* SetProperty = Cast<const USetProperty>(Property);
+	const UArrayProperty* ArrayProperty = Cast<const UArrayProperty>(Property);
+	const UProperty* TestProperty = Property;
 	if (MapProperty) {
 		TestProperty = MapProperty->KeyProp;
 
@@ -180,9 +180,11 @@ bool FPropertyTypeHelper::ConvertPropertyToPinType(const FProperty* Property, /*
 		if (!bResult) {
 			return false;
 		}
-	} else if (SetProperty) {
+	}
+	else if (SetProperty) {
 		TestProperty = SetProperty->ElementProp;
-	} else if (ArrayProperty) {
+	}
+	else if (ArrayProperty) {
 		TestProperty = ArrayProperty->Inner;
 	}
 	TypeOut.ContainerType = FEdGraphPinType::ToPinContainerType(ArrayProperty != nullptr, SetProperty != nullptr, MapProperty != nullptr);
@@ -190,13 +192,15 @@ bool FPropertyTypeHelper::ConvertPropertyToPinType(const FProperty* Property, /*
 	TypeOut.bIsConst = Property->HasAllPropertyFlags(CPF_ConstParm);
 
 	// Check to see if this is the wildcard property for the target container type
-	if (const FMulticastDelegateProperty* MulticastDelegateProperty = CastField<const FMulticastDelegateProperty>(TestProperty)) {
+	if (const UMulticastDelegateProperty* MulticastDelegateProperty = Cast<const UMulticastDelegateProperty>(TestProperty)) {
 		TypeOut.PinCategory = PC_MCDelegate;
 		FMemberReference::FillSimpleMemberReference<UFunction>(MulticastDelegateProperty->SignatureFunction, TypeOut.PinSubCategoryMemberReference);
-	} else if (const FDelegateProperty* DelegateProperty = CastField<const FDelegateProperty>(TestProperty)) {
+	}
+	else if (const UDelegateProperty* DelegateProperty = Cast<const UDelegateProperty>(TestProperty)) {
 		TypeOut.PinCategory = PC_Delegate;
 		FMemberReference::FillSimpleMemberReference<UFunction>(DelegateProperty->SignatureFunction, TypeOut.PinSubCategoryMemberReference);
-	} else {
+	}
+	else {
 		UObject* SubCategoryObject = nullptr;
 		bool bIsWeakPointer = false;
 		bool bResult = GetPropertyCategoryInfo(TestProperty, TypeOut.PinCategory, TypeOut.PinSubCategory, SubCategoryObject, bIsWeakPointer);
@@ -209,54 +213,69 @@ bool FPropertyTypeHelper::ConvertPropertyToPinType(const FProperty* Property, /*
 	return true;
 }
 
-bool GetPropertyCategoryInfo(const FProperty* TestProperty, FName& OutCategory, FName& OutSubCategory, UObject*& OutSubCategoryObject, bool& bOutIsWeakPointer) {
-	if (const FInterfaceProperty* InterfaceProperty = CastField<const FInterfaceProperty>(TestProperty)) {
+bool GetPropertyCategoryInfo(const UProperty* TestProperty, FName& OutCategory, FName& OutSubCategory, UObject*& OutSubCategoryObject, bool& bOutIsWeakPointer) {
+	if (const UInterfaceProperty* InterfaceProperty = Cast<const UInterfaceProperty>(TestProperty)) {
 		OutCategory = PC_Interface;
 		OutSubCategoryObject = InterfaceProperty->InterfaceClass;
-	} else if (const FClassProperty* ClassProperty = CastField<const FClassProperty>(TestProperty)) {
+	}
+	else if (const UClassProperty* ClassProperty = Cast<const UClassProperty>(TestProperty)) {
 		OutCategory = PC_Class;
 		OutSubCategoryObject = ClassProperty->MetaClass;
-	} else if (const FSoftClassProperty* SoftClassProperty = CastField<const FSoftClassProperty>(TestProperty)) {
+	}
+	else if (const USoftClassProperty* SoftClassProperty = Cast<const USoftClassProperty>(TestProperty)) {
 		OutCategory = PC_SoftClass;
 		OutSubCategoryObject = SoftClassProperty->MetaClass;
-	} else if (const FSoftObjectProperty* SoftObjectProperty = CastField<const FSoftObjectProperty>(TestProperty)) {
+	}
+	else if (const USoftObjectProperty* SoftObjectProperty = Cast<const USoftObjectProperty>(TestProperty)) {
 		OutCategory = PC_SoftObject;
 		OutSubCategoryObject = SoftObjectProperty->PropertyClass;
-	} else if (const FObjectPropertyBase* ObjectProperty = CastField<const FObjectPropertyBase>(TestProperty)) {
+	}
+	else if (const UObjectPropertyBase* ObjectProperty = Cast<const UObjectPropertyBase>(TestProperty)) {
 		OutCategory = PC_Object;
 		OutSubCategoryObject = ObjectProperty->PropertyClass;
-		bOutIsWeakPointer = TestProperty->IsA(FWeakObjectProperty::StaticClass());
-	} else if (const FStructProperty* StructProperty = CastField<const FStructProperty>(TestProperty)) {
+		bOutIsWeakPointer = TestProperty->IsA(UWeakObjectProperty::StaticClass());
+	}
+	else if (const UStructProperty* StructProperty = Cast<const UStructProperty>(TestProperty)) {
 		OutCategory = PC_Struct;
 		OutSubCategoryObject = StructProperty->Struct;
-	} else if (TestProperty->IsA<FFloatProperty>()) {
+	}
+	else if (TestProperty->IsA<UFloatProperty>()) {
 		OutCategory = PC_Float;
-	} else if (TestProperty->IsA<FInt64Property>()) {
+	}
+	else if (TestProperty->IsA<UInt64Property>()) {
 		OutCategory = PC_Int64;
-	} else if (TestProperty->IsA<FIntProperty>()) {
+	}
+	else if (TestProperty->IsA<UIntProperty>()) {
 		OutCategory = PC_Int;
-	} else if (const FByteProperty* ByteProperty = CastField<const FByteProperty>(TestProperty)) {
+	}
+	else if (const UByteProperty* ByteProperty = Cast<const UByteProperty>(TestProperty)) {
 		OutCategory = PC_Byte;
 		OutSubCategoryObject = ByteProperty->Enum;
-	} else if (const FEnumProperty* EnumProperty = CastField<const FEnumProperty>(TestProperty)) {
+	}
+	else if (const UEnumProperty* EnumProperty = Cast<const UEnumProperty>(TestProperty)) {
 		// K2 only supports byte enums right now - any violations should have been caught by UHT or the editor
-		if (!EnumProperty->GetUnderlyingProperty()->IsA<FByteProperty>()) {
+		if (!EnumProperty->GetUnderlyingProperty()->IsA<UByteProperty>()) {
 			OutCategory = TEXT("unsupported_enum_type");
 			return false;
 		}
 
 		OutCategory = PC_Byte;
 		OutSubCategoryObject = EnumProperty->GetEnum();
-		
-	} else if (TestProperty->IsA<FNameProperty>()) {
+
+	}
+	else if (TestProperty->IsA<UNameProperty>()) {
 		OutCategory = PC_Name;
-	} else if (TestProperty->IsA<FBoolProperty>()) {
+	}
+	else if (TestProperty->IsA<UBoolProperty>()) {
 		OutCategory = PC_Boolean;
-	} else if (TestProperty->IsA<FStrProperty>()) {
+	}
+	else if (TestProperty->IsA<UStrProperty>()) {
 		OutCategory = PC_String;
-	} else if (TestProperty->IsA<FTextProperty>()) {
+	}
+	else if (TestProperty->IsA<UTextProperty>()) {
 		OutCategory = PC_Text;
-	} else {
+	}
+	else {
 		OutCategory = TEXT("bad_type");
 		return false;
 	}

@@ -4,17 +4,19 @@
 #include "AssetGeneration/AssetGeneratorSettings.h"
 #include "Dom/JsonObject.h"
 #include "Misc/FileHelper.h"
+#include "Engine/Texture2D.h"
+#include "Modules/ModuleManager.h"
 #include "Toolkit/ObjectHierarchySerializer.h"
 
 void UTexture2DGenerator::CreateAssetPackage() {
 	UPackage* NewPackage = CreatePackage(
 #if ENGINE_MINOR_VERSION < 26
-	nullptr, 
+		nullptr,
 #endif
-*GetPackageName().ToString());
+		* GetPackageName().ToString());
 	UTexture2D* NewTexture = NewObject<UTexture2D>(NewPackage, GetAssetName(), RF_Public | RF_Standalone);
 	SetPackageAndAsset(NewPackage, NewTexture);
-	
+
 	RebuildTextureData(NewTexture);
 }
 
@@ -59,12 +61,12 @@ FString ComputeBlankTextureHash(const int64 TextureSize) {
 		PrecomputedCaches.Add(TextureSize, TextureHash);
 		return TextureHash;
 	}
-	return PrecomputedCaches.FindChecked(TextureSize);	
+	return PrecomputedCaches.FindChecked(TextureSize);
 }
 
 void FillBlankTextureData(UTexture2D* Texture) {
 	uint8* LockedMipData = Texture->Source.LockMip(0);
-	
+
 	const int64 MipMapSize = Texture->Source.CalcMipSize(0);
 	FMemory::Memset(LockedMipData, 0xFF, MipMapSize);
 
@@ -82,15 +84,15 @@ void FillTextureDataFromDump(UTexture2D* Texture, const FString& ImageFilePath) 
 	check(ImageWrapper->SetCompressed(CompressedFileData.GetData(), CompressedFileData.Num() * sizeof(uint8)));
 	CompressedFileData.Empty();
 
-	TArray64<uint8> ResultUncompressedData;
+	const TArray<uint8>* ResultUncompressedData = nullptr;
 	check(ImageWrapper->GetRaw(ERGBFormat::BGRA, 8, ResultUncompressedData));
 
 	//Populate first texture mipmap with the decompressed data from the file
 	uint8* LockedMipData = Texture->Source.LockMip(0);
-	
+
 	const int64 MipMapSize = Texture->Source.CalcMipSize(0);
-	check(ResultUncompressedData.Num() == MipMapSize);
-	FMemory::Memcpy(LockedMipData, ResultUncompressedData.GetData(), MipMapSize);
+	check(ResultUncompressedData->Num() == MipMapSize);
+	FMemory::Memcpy(LockedMipData, ResultUncompressedData->GetData(), MipMapSize);
 
 	Texture->Source.UnlockMip(0);
 }
@@ -103,11 +105,12 @@ void UTexture2DGenerator::RebuildTextureData(UTexture2D* Texture, const FString&
 
 	//Reinitialize texture data with new dimensions and format
 	Texture->Source.Init2DWithMipChain(TextureWidth, TextureHeight, ETextureSourceFormat::TSF_BGRA8);
-	
+
 	//Use dump file if we're not doing public project, otherwise use blank texture
 	if (!bIsGeneratingPublicProject) {
 		FillTextureDataFromDump(Texture, TextureFilePath);
-	} else {
+	}
+	else {
 		FillBlankTextureData(Texture);
 	}
 
@@ -116,13 +119,13 @@ void UTexture2DGenerator::RebuildTextureData(UTexture2D* Texture, const FString&
 	ObjectSerializer->DeserializeObjectProperties(TextureProperties.ToSharedRef(), Texture);
 
 	//Disable mips by default if we are not sized appropriately for their generation
-	const int32 Log2Int = (int32) FMath::Log2(TextureWidth);
+	const int32 Log2Int = (int32)FMath::Log2(TextureWidth);
 	const int32 ClosestPowerOfTwoSize = 1 << Log2Int;
-	
+
 	if (TextureWidth != TextureHeight || TextureWidth != ClosestPowerOfTwoSize) {
 		Texture->MipGenSettings = TextureMipGenSettings::TMGS_NoMipmaps;
 	}
-	
+
 	//Force no MipMaps policy if specified in the settings
 	const UAssetGeneratorSettings* Settings = UAssetGeneratorSettings::Get();
 	if (Settings->PackagesToForceNoMipMaps.Contains(Texture->GetOutermost()->GetName())) {
@@ -153,7 +156,7 @@ bool UTexture2DGenerator::IsTextureUpToDate(UTexture2D* ExistingTexture, UObject
 	if (!ObjectSerializer->AreObjectPropertiesUpToDate(TextureProperties, ExistingTexture)) {
 		return false;
 	}
-	
+
 	return true;
 }
 

@@ -6,16 +6,16 @@
 void UUserDefinedEnumGenerator::CreateAssetPackage() {
 	UPackage* NewPackage = CreatePackage(
 #if ENGINE_MINOR_VERSION < 26
-	nullptr, 
+		nullptr,
 #endif
-*GetPackageName().ToString());
+		* GetPackageName().ToString());
 	UUserDefinedEnum* NewEnum = NewObject<UUserDefinedEnum>(NewPackage, GetAssetName(), RF_Public | RF_Standalone);
 	SetPackageAndAsset(NewPackage, NewEnum);
 
 	TArray<TPair<FName, int64>> EmptyNames;
 	NewEnum->SetEnums(EmptyNames, UEnum::ECppForm::Namespaced);
 	NewEnum->SetMetaData(TEXT("BlueprintType"), TEXT("true"));
-	
+
 	PopulateEnumWithData(NewEnum);
 }
 
@@ -24,12 +24,12 @@ void UUserDefinedEnumGenerator::OnExistingPackageLoaded() {
 
 	if (!IsEnumerationUpToDate(ExistingEnum)) {
 		UE_LOG(LogAssetGenerator, Display, TEXT("UserDefinedEnum %s is not up to date, regenerating data"), *ExistingEnum->GetPathName());
-		
+
 		//Wipe any existing data from the enumeration
 		TArray<TPair<FName, int64>> EmptyNames;
 		ExistingEnum->SetEnums(EmptyNames, UEnum::ECppForm::Namespaced);
 		ExistingEnum->DisplayNameMap.Empty();
-	
+
 		PopulateEnumWithData(ExistingEnum);
 	}
 }
@@ -43,16 +43,16 @@ void UUserDefinedEnumGenerator::PopulateEnumWithData(UUserDefinedEnum* Enum) {
 	//Last entry should always be a MAX one, just skip it because SetEnums will make one on it's own
 	const TSharedPtr<FJsonObject> LastNamePair = Names.Last()->AsObject();
 	check(LastNamePair->GetStringField(TEXT("Name")).EndsWith(TEXT("_MAX")));
-	
+
 	for (int32 i = 0; i < Names.Num() - 1; i++) {
 		const TSharedPtr<FJsonObject> PairObject = Names[i]->AsObject();
 		const FString Name = PairObject->GetStringField(TEXT("Name"));
 		const int64 Value = PairObject->GetIntegerField(TEXT("Value"));
 
 		const FString NewFullName = Enum->GenerateFullEnumName(*Name);
-		ResultEnumNames.Add(TPair<FName, int64>(NewFullName, Value));
+		ResultEnumNames.Add(TPair<FName, int64>(FName(*NewFullName), Value));
 	}
-	
+
 	Enum->SetEnums(ResultEnumNames, UEnum::ECppForm::Namespaced);
 	check(LastNamePair->GetIntegerField(TEXT("Value")) == Enum->GetMaxEnumValue());
 
@@ -98,7 +98,7 @@ bool UUserDefinedEnumGenerator::IsEnumerationUpToDate(UUserDefinedEnum* Enum) co
 		const FString DisplayName = PairObject->GetStringField(TEXT("DisplayName"));
 
 		const FText* ExistingDisplayName = Enum->DisplayNameMap.Find(*Name);
-		
+
 		if (ExistingDisplayName == NULL ||
 			ExistingDisplayName->ToString() != DisplayName) {
 			return false;

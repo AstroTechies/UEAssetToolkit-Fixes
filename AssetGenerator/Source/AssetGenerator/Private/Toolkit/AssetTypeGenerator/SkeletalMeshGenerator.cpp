@@ -12,28 +12,31 @@
 #include "Factories/ReimportFbxSkeletalMeshFactory.h"
 #include "Modules/ModuleManager.h"
 #include "PhysicsEngine/BodySetup.h"
+#include "Animation/Skeleton.h"
 #include "Toolkit/AssetGeneration/PublicProjectStubHelper.h"
+#include "Materials/MaterialInterface.h"
+#include "PhysicsEngine/PhysicsAsset.h"
 
 void USkeletalMeshGenerator::CreateAssetPackage() {
 	UPackage* NewPackage = CreatePackage(
 #if ENGINE_MINOR_VERSION < 26
-	nullptr, 
+		nullptr,
 #endif
-*GetPackageName().ToString());
+		* GetPackageName().ToString());
 	USkeletalMesh* NewSkeletalMesh = ImportSkeletalMesh(NewPackage, GetAssetName(), RF_Public | RF_Standalone);
 	SetPackageAndAsset(NewPackage, NewSkeletalMesh);
-	
+
 	PopulateSkeletalMeshProperties(NewSkeletalMesh);
 }
 
 void USkeletalMeshGenerator::OnExistingPackageLoaded() {
 	USkeletalMesh* ExistingMesh = GetAsset<USkeletalMesh>();
-	
+
 	if (!IsSkeletalMeshSourceFileUpToDate(ExistingMesh)) {
 		UE_LOG(LogAssetGenerator, Log, TEXT("Refreshing SkeletalMesh %s Source Model"), *GetPackageName().ToString());
 		ReimportSkeletalMeshSource(ExistingMesh);
 	}
-	
+
 	if (!IsSkeletalMeshPropertiesUpToDate(ExistingMesh)) {
 		UE_LOG(LogAssetGenerator, Log, TEXT("Refreshing SkeletalMesh %s Properties"), *GetPackageName().ToString());
 		PopulateSkeletalMeshProperties(ExistingMesh);
@@ -43,7 +46,7 @@ void USkeletalMeshGenerator::OnExistingPackageLoaded() {
 USkeletalMesh* USkeletalMeshGenerator::ImportSkeletalMesh(UPackage* Package, const FName& AssetName, const EObjectFlags ObjectFlags) {
 	UFbxFactory* SkeletalMeshFactory = NewObject<UFbxFactory>(GetTransientPackage(), NAME_None);
 	UObject* ResultMesh;
-	
+
 	SkeletalMeshFactory->SetAutomatedAssetImportData(NewObject<UAutomatedAssetImportData>(SkeletalMeshFactory));
 	SkeletalMeshFactory->SetDetectImportTypeOnImport(false);
 
@@ -52,41 +55,43 @@ USkeletalMesh* USkeletalMeshGenerator::ImportSkeletalMesh(UPackage* Package, con
 	FString AssetFbxFilePath;
 	if (!IsGeneratingPublicProject()) {
 		AssetFbxFilePath = GetAdditionalDumpFilePath(TEXT(""), TEXT("fbx"));;
-	} else {
+	}
+	else {
 		AssetFbxFilePath = FPublicProjectStubHelper::DefaultSkeletalMesh.GetFullFilePath();
 	}
-	
+
 	bool bOperationCancelled = false;
 	ResultMesh = SkeletalMeshFactory->ImportObject(USkeletalMesh::StaticClass(), Package, AssetName, ObjectFlags, AssetFbxFilePath, TEXT(""), bOperationCancelled);
-        
+
 	checkf(ResultMesh, TEXT("Failed to import SkeletalMesh %s from FBX file %s. See log for errors"), *GetPackageName().ToString(), *AssetFbxFilePath);
 	checkf(ResultMesh->GetOuter() == Package, TEXT("Expected Outer to be package %s, found %s"), *Package->GetName(), *ResultMesh->GetOuter()->GetPathName());
 	checkf(ResultMesh->GetFName() == AssetName, TEXT("Expected Name to be %s, but found %s"), *AssetName.ToString(), *ResultMesh->GetName());
-	
+
 	return CastChecked<USkeletalMesh>(ResultMesh);
 }
 
 void USkeletalMeshGenerator::ReimportSkeletalMeshSource(USkeletalMesh* Asset) {
 	UReimportFbxSkeletalMeshFactory* SkeletalMeshFactory = NewObject<UReimportFbxSkeletalMeshFactory>(GetTransientPackage(), NAME_None);
-	
+
 	SkeletalMeshFactory->SetAutomatedAssetImportData(NewObject<UAutomatedAssetImportData>(SkeletalMeshFactory));
 	SkeletalMeshFactory->SetDetectImportTypeOnImport(false);
 	SetupFbxImportSettings(SkeletalMeshFactory->ImportUI, GetAssetName(), Asset->
-#if ENGINE_MINOR_VERSION == 25
-	GetOutermost() 
+#if ENGINE_MINOR_VERSION <= 25
+		GetOutermost()
 #else
-	GetPackage()
+		GetPackage()
 #endif
 	);
-	
+
 	FString AssetFbxFilePath;
 	if (!IsGeneratingPublicProject()) {
 		AssetFbxFilePath = GetAdditionalDumpFilePath(TEXT(""), TEXT("fbx"));
-	} else {
+	}
+	else {
 		AssetFbxFilePath = FPublicProjectStubHelper::DefaultSkeletalMesh.GetFullFilePath();
 	}
-	
-	SkeletalMeshFactory->SetReimportPaths(Asset, {AssetFbxFilePath});
+
+	SkeletalMeshFactory->SetReimportPaths(Asset, { AssetFbxFilePath });
 	SkeletalMeshFactory->Reimport(Asset);
 	MarkAssetChanged();
 }
@@ -107,10 +112,11 @@ void USkeletalMeshGenerator::SetupFbxImportSettings(UFbxImportUI* ImportUI, cons
 			UObject* NewSkeleton = AssetToolsModule.Get().CreateAsset(SkeletonName, PackagePath, USkeleton::StaticClass(), NewObject<USkeletonFactory>());
 			ImportUI->Skeleton = CastChecked<USkeleton>(NewSkeleton);
 		} else {*/
-			USkeleton* Skeleton = CastChecked<USkeleton>(GetObjectSerializer()->DeserializeObject(SkeletonObjectIndex));	
-			ImportUI->Skeleton = Skeleton;
+		USkeleton* Skeleton = CastChecked<USkeleton>(GetObjectSerializer()->DeserializeObject(SkeletonObjectIndex));
+		ImportUI->Skeleton = Skeleton;
 		//}
-	} else {
+	}
+	else {
 		ImportUI->Skeleton = FPublicProjectStubHelper::DefaultSkeletalMeshSkeleton.GetObject();
 	}
 
@@ -141,21 +147,21 @@ void USkeletalMeshGenerator::PopulateSkeletalMeshProperties(USkeletalMesh* Asset
 	const TSharedPtr<FJsonObject> AssetObjectProperties = AssetData->GetObjectField(TEXT("AssetObjectData"));
 
 	GetObjectSerializer()->DeserializeObjectProperties(AssetObjectProperties.ToSharedRef(), Asset);
-	
+
 	const TArray<TSharedPtr<FJsonValue>>& Materials = AssetData->GetArrayField(TEXT("Materials"));
 
 	//TODO not quite exactly the case, because for some LODs the material instances can be different, but we discard any LODs
 	//ensure(Materials.Num() == Asset->Materials.Num());
-	
+
 	for (int32 i = 0; i < FMath::Min(Materials.Num(), Asset->Materials.Num()); i++) {
 		const TSharedPtr<FJsonObject> MaterialObject = Materials[i]->AsObject();
-		
+
 		const FName MaterialSlotName = FName(*MaterialObject->GetStringField(TEXT("MaterialSlotName")));
 		UObject* MaterialInterface = GetObjectSerializer()->DeserializeObject(MaterialObject->GetIntegerField(TEXT("MaterialInterface")));
-		
+
 		FSkeletalMaterial& StaticMaterial = Asset->Materials[i];
 		StaticMaterial.MaterialSlotName = MaterialSlotName;
-		
+
 		if (MaterialInterface) {
 			StaticMaterial.MaterialInterface = CastChecked<UMaterialInterface>(MaterialInterface);
 		}
@@ -185,11 +191,11 @@ bool USkeletalMeshGenerator::IsSkeletalMeshPropertiesUpToDate(USkeletalMesh* Ass
 
 	for (int32 i = 0; i < FMath::Min(Materials.Num(), Asset->Materials.Num()); i++) {
 		const TSharedPtr<FJsonObject> MaterialObject = Materials[i]->AsObject();
-		
+
 		const FName MaterialSlotName = FName(*MaterialObject->GetStringField(TEXT("MaterialSlotName")));
 		const int32 MaterialInterface = MaterialObject->GetIntegerField(TEXT("MaterialInterface"));
 		const FSkeletalMaterial& StaticMaterial = Asset->Materials[i];
-		
+
 		if (!GetObjectSerializer()->CompareUObjects(MaterialInterface, StaticMaterial.MaterialInterface, true, true) ||
 			StaticMaterial.MaterialSlotName != MaterialSlotName) {
 			return false;
@@ -201,13 +207,14 @@ bool USkeletalMeshGenerator::IsSkeletalMeshPropertiesUpToDate(USkeletalMesh* Ass
 bool USkeletalMeshGenerator::IsSkeletalMeshSourceFileUpToDate(USkeletalMesh* Asset) const {
 	const FAssetImportInfo& AssetImportInfo = Asset->AssetImportData->SourceData;
 	const FMD5Hash& ExistingFileHash = AssetImportInfo.SourceFiles[0].FileHash;
-	
+
 	const FString ExistingFileHashString = LexToString(ExistingFileHash);
-	
+
 	FString ModelFileHash;
 	if (!IsGeneratingPublicProject()) {
 		ModelFileHash = GetAssetData()->GetStringField(TEXT("ModelFileHash"));;
-	} else {
+	}
+	else {
 		ModelFileHash = FPublicProjectStubHelper::DefaultSkeletalMesh.GetFileHash();
 	}
 	return ExistingFileHashString == ModelFileHash;
@@ -216,12 +223,12 @@ bool USkeletalMeshGenerator::IsSkeletalMeshSourceFileUpToDate(USkeletalMesh* Ass
 void USkeletalMeshGenerator::PopulateStageDependencies(TArray<FPackageDependency>& OutDependencies) const {
 	if (GetCurrentStage() == EAssetGenerationStage::CONSTRUCTION) {
 		const TSharedPtr<FJsonObject> AssetData = GetAssetData();
-		
+
 		const TSharedPtr<FJsonObject> AssetObjectProperties = AssetData->GetObjectField(TEXT("AssetObjectData"));
 		const TArray<TSharedPtr<FJsonValue>> ReferencedObjects = AssetObjectProperties->GetArrayField(TEXT("$ReferencedObjects"));
 
 		const TArray<TSharedPtr<FJsonValue>>& Materials = AssetData->GetArrayField(TEXT("Materials"));
-	
+
 		TArray<FString> OutReferencedPackages;
 		GetObjectSerializer()->CollectReferencedPackages(ReferencedObjects, OutReferencedPackages);
 
@@ -235,9 +242,9 @@ void USkeletalMeshGenerator::PopulateStageDependencies(TArray<FPackageDependency
 			const int32 MaterialInterface = MaterialObject->GetIntegerField(TEXT("MaterialInterface"));
 			GetObjectSerializer()->CollectObjectPackages(MaterialInterface, OutReferencedPackages);
 		}
-		
+
 		for (const FString& DependencyPackageName : OutReferencedPackages) {
-			OutDependencies.Add(FPackageDependency{*DependencyPackageName, EAssetGenerationStage::CDO_FINALIZATION});
+			OutDependencies.Add(FPackageDependency{ *DependencyPackageName, EAssetGenerationStage::CDO_FINALIZATION });
 		}
 	}
 }

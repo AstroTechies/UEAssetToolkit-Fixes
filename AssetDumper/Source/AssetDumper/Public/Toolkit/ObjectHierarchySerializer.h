@@ -43,6 +43,9 @@ private:
     TMap<int32, TSharedPtr<FJsonObject>> SerializedObjects;
     UPROPERTY()
     TMap<UObject*, FString> ObjectMarks;
+    public:
+    UPROPERTY()
+    FString PackageName;
 public:
     UObjectHierarchySerializer();
 
